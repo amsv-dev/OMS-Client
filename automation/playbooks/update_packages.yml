@@ -1,0 +1,9 @@
+---
+- name: Update package metadata
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Simulate package update
+      ansible.builtin.debug:
+        msg: "update_packages executed (no-op by default)"

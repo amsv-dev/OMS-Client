@@ -1,0 +1,9 @@
+---
+- name: Rotate local logs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Simulate log rotation
+      ansible.builtin.debug:
+        msg: "rotate_logs executed (safe default)"
