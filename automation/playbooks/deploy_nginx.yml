@@ -1,0 +1,9 @@
+---
+- name: Deploy nginx local
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Validate playbook pipeline
+      ansible.builtin.debug:
+        msg: "deploy_nginx executed on localhost"

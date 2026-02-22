@@ -1,0 +1,128 @@
+services:
+  # InfluxDB Local - Armazena métricas localmente para resiliência
+  influxdb-local:
+    image: influxdb:2.7-alpine
+    container_name: client-influxdb
+    restart: always
+    ports:
+      - "${CLIENT_INFLUXDB_HTTP_PORT:-8087}:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=localpass123
+      - DOCKER_INFLUXDB_INIT_ORG=client
+      - DOCKER_INFLUXDB_INIT_BUCKET=metrics
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=client-local-token
+    volumes:
+      - influxdb-local-data:/var/lib/influxdb2
+    networks:
+      - client-network
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Telegraf - Coleta métricas do sistema e envia para InfluxDB local
+  telegraf:
+    image: telegraf:alpine
+    container_name: client-telegraf
+    restart: always
+    environment:
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+      - HOST_ETC=/host/etc
+      - TENANT_ID=${TENANT_ID:-unknown}
+      - AGENT_ID=${AGENT_ID:-unknown}
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc:/host/etc:ro
+    depends_on:
+      influxdb-local:
+        condition: service_healthy
+    networks:
+      - client-network
+
+  # Customer Agent - Replica métricas, processa alertas, executa comandos
+  # CLIENT_IMAGE_REGISTRY: ACR client público (default) ou omsv2acr para testes
+  customer-agent:
+    image: ${CLIENT_IMAGE_REGISTRY:-omsv2client.azurecr.io}/oms-customer-agent:${OMS_IMAGE_TAG:-latest}
+    container_name: client-customer-agent
+    restart: always
+    environment:
+      # Identidade runtime
+      - TENANT_ID=${TENANT_ID:-unknown}
+      - AGENT_ID=${AGENT_ID:-unknown}
+      - ASPNETCORE_ENVIRONMENT=Production
+      
+      # Solace - Comunicação com cloud layer
+      - SOLACE__HOST=${SOLACE__HOST:-192.168.56.30}
+      - SOLACE__PORT=${SOLACE__PORT:-1883}
+      - SOLACE__VPN=${SOLACE__VPN:-default}
+      - SOLACE__USERNAME=${SOLACE__USERNAME:-default}
+      - SOLACE__PASSWORD=${SOLACE__PASSWORD:-default}
+      
+      # InfluxDB Local - Leitura de métricas
+      - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
+      - INFLUXDB_LOCAL_TOKEN=client-local-token
+      - INFLUXDB_LOCAL_ORG=client
+      - INFLUXDB_LOCAL_BUCKET=metrics
+    depends_on:
+      influxdb-local:
+        condition: service_healthy
+    volumes:
+      - ../automation/playbooks:/app/playbooks:ro
+    networks:
+      - client-network
+      - oms-shared-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Assessment UI - Client onboarding frontend
+  assessment:
+    image: ${CLIENT_IMAGE_REGISTRY:-omsv2client.azurecr.io}/oms-assessment:${OMS_IMAGE_TAG:-latest}
+    container_name: client-assessment
+    restart: always
+    ports:
+      - "${CLIENT_ASSESSMENT_HTTP_PORT:-3002}:80"
+    depends_on:
+      - customer-agent
+    networks:
+      - client-network
+
+  # NOTE: Remote execution via CommandReceiverService (Solace)
+  # See docs/decisions/ADR-001-remote-execution.md
+
+  # Demo Triggers - Serviço de teste para disparar eventos (apenas dev)
+  demo-triggers:
+    image: node:20-alpine
+    container_name: client-demo-triggers
+    restart: always
+    working_dir: /app
+    volumes:
+      - ../demo-triggers:/app
+    command: sh -c "npm install && node server.js"
+    ports:
+      - "${CLIENT_DEMO_TRIGGERS_PORT:-3101}:3001"
+    environment:
+      - SOLACE__HOST=192.168.56.30
+    networks:
+      - client-network
+    profiles:
+      - dev
+
+volumes:
+  influxdb-local-data:
+    external: true
+    name: compose_influxdb-local-data
+
+networks:
+  client-network:
+    driver: bridge
+  oms-shared-network:
+    external: true

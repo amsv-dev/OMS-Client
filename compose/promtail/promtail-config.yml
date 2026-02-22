@@ -1,0 +1,129 @@
+# Promtail Configuration for Client VM
+# Collects all logs and sends to Central Loki
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  # Central Loki endpoint with multi-tenant auth
+  - url: http://192.168.56.10:3100/loki/api/v1/push
+    tenant_id: ${AGENT_ID:-${CLIENT_ID}}
+    external_labels:
+      agent_id: ${AGENT_ID:-${CLIENT_ID}}
+
+scrape_configs:
+  # ==========================================================================
+  # SYSTEM LOGS
+  # ==========================================================================
+  
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          source: system
+          __path__: /var/log/syslog
+
+  - job_name: auth
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: auth
+          source: security
+          __path__: /var/log/auth.log
+
+  - job_name: kern
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: kernel
+          source: system
+          __path__: /var/log/kern.log
+
+  - job_name: dpkg
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: dpkg
+          source: packages
+          __path__: /var/log/dpkg.log
+
+  - job_name: apt
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: apt
+          source: packages
+          __path__: /var/log/apt/*.log
+
+  - job_name: cron
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cron
+          source: system
+          __path__: /var/log/cron.log
+
+  # ==========================================================================
+  # APPLICATION LOGS (if any)
+  # ==========================================================================
+
+  - job_name: nginx
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          source: application
+          __path__: /var/log/nginx/*.log
+
+  - job_name: postgres
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: postgres
+          source: database
+          __path__: /var/log/postgresql/*.log
+
+  # ==========================================================================
+  # DOCKER CONTAINER LOGS
+  # ==========================================================================
+  
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          source: containers
+          __path__: /var/lib/docker/containers/*/*-json.log
+    pipeline_stages:
+      # Parse Docker JSON log format
+      - json:
+          expressions:
+            log: log
+            stream: stream
+            time: time
+      - labels:
+          stream:
+      - output:
+          source: log
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+      # Extract container ID from path
+      - regex:
+          expression: '/var/lib/docker/containers/(?P<container_id>[^/]+)/.*'
+      - labels:
+          container_id:

@@ -1,0 +1,9 @@
+---
+- name: Configure monitoring hooks
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Simulate monitoring configuration
+      ansible.builtin.debug:
+        msg: "configure_monitoring executed (global pack)"

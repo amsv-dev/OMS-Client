@@ -1,0 +1,35 @@
+groups:
+- name: disk
+  rules:
+  - record: node_fs_used_percent
+    expr: 100 - (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes
+
+  - alert: DiskUsageHigh
+    expr: node_fs_used_percent > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Disk usage > 80% on {{ $labels.instance }}"
+      description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+  - alert: ServiceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Service down on {{ $labels.instance }}"
+      description: "Target {{ $labels.instance }} is unreachable"
+
+  - alert: TestAlert
+    expr: vector(1) > 0
+    for: 1s
+    labels:
+      severity: critical
+      tier: web
+      env: production
+    annotations:
+      summary: "Test Alert"
+      description: "This is a test alert"
+
