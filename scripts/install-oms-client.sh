@@ -5,6 +5,7 @@ set -euo pipefail
 
 TOKEN="${1:-}"
 API_URL="${2:-}"
+SITE_CODE="${SITE_CODE:-}"
 COMPOSE_DIR="${COMPOSE_DIR:-}"
 OMS_CLIENT_DIR="${OMS_CLIENT_DIR:-$HOME/oms-client}"
 
@@ -16,18 +17,23 @@ Uso:
   bash install-oms-client.sh <TOKEN> [API_URL]
 
   TOKEN   — Token de onboarding (obrigatório, enviado pelo admin)
-  API_URL — URL da API (opcional; se omitido, será pedido. Ex: http://10.69.105.41:8443)
+  API_URL — URL da API (opcional; ex: http://10.69.105.42:5000 ou proxy Cloud :8443)
+
+Opções:
+  --site-code CODE   Site code para assetId (ex: site1 → e2e-test-site1)
+  --compose-dir DIR  Diretório do compose
+  --oms-client-dir   Raiz do projeto client
 
 Exemplo:
-  bash install-oms-client.sh abc123def456
-  bash install-oms-client.sh abc123def456 http://10.69.105.41:8443
+  bash install-oms-client.sh e2e-test-token-123 http://10.69.105.42:5000 --site-code site1
 
-A Central devolve: bundle, Solace host/user/pass. O client só precisa do token.
+A Central devolve: bundle (tenantId, assetId), Solace. O client só precisa do token.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --site-code) SITE_CODE="$2"; shift 2 ;;
     --compose-dir) COMPOSE_DIR="$2"; shift 2 ;;
     --oms-client-dir) OMS_CLIENT_DIR="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -58,7 +64,9 @@ API_URL="${API_URL%/}"
 command -v curl >/dev/null 2>&1 || { echo "[erro] curl não encontrado." >&2; exit 1; }
 
 echo "[install] A obter dados da Central (token válido)..."
-RESPONSE="$(curl -fsS -H "X-Customer-Token: $TOKEN" "${API_URL}/api/assessment/validate")"
+VALIDATE_URL="${API_URL}/api/assessment/validate"
+[[ -n "$SITE_CODE" ]] && VALIDATE_URL="${VALIDATE_URL}?siteCode=${SITE_CODE}"
+RESPONSE="$(curl -fsS -H "X-Customer-Token: $TOKEN" "$VALIDATE_URL")"
 
 # Extrair campos do JSON (python3 ou jq)
 extract() {
