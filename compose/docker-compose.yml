@@ -28,6 +28,8 @@ services:
     image: telegraf:alpine
     container_name: client-telegraf
     restart: always
+    env_file:
+      - .env
     environment:
       - HOST_PROC=/host/proc
       - HOST_SYS=/host/sys
@@ -51,6 +53,8 @@ services:
     image: ${CLIENT_IMAGE_REGISTRY:-omsv2client.azurecr.io}/oms-customer-agent:${OMS_IMAGE_TAG:-latest}
     container_name: client-customer-agent
     restart: always
+    env_file:
+      - .env
     environment:
       # Identidade runtime
       - TENANT_ID=${TENANT_ID:-unknown}
