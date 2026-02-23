@@ -80,7 +80,7 @@ print(v or '')
 }
 
 TENANT_ID="$(extract "runtimeIdentity.tenantId")"
-AGENT_ID="$(extract "runtimeIdentity.agentId")"
+ASSET_ID="$(extract "runtimeIdentity.assetId")"
 ISSUED_AT="$(extract "runtimeIdentity.issuedAtUtc")"
 EXPIRES_AT="$(extract "runtimeIdentity.expiresAtUtc")"
 NONCE="$(extract "runtimeIdentity.nonce")"
@@ -94,7 +94,7 @@ RESPONSE_API_URL="$(extract "apiUrl")"
 # Usar apiUrl da resposta se disponível
 [[ -n "$RESPONSE_API_URL" ]] && API_URL="${RESPONSE_API_URL%/}"
 
-if [[ -z "$TENANT_ID" ]] || [[ -z "$AGENT_ID" ]]; then
+if [[ -z "$TENANT_ID" ]] || [[ -z "$ASSET_ID" ]]; then
   echo "[erro] Resposta inválida da API. Token pode estar expirado." >&2
   echo "$RESPONSE" | head -c 500
   exit 1
@@ -102,7 +102,7 @@ fi
 
 # Validar bundle na API
 echo "[install] A validar bundle..."
-VALIDATE_PAYLOAD="{\"assessmentToken\":\"$TOKEN\",\"bundle\":{\"tenantId\":\"$TENANT_ID\",\"agentId\":\"$AGENT_ID\",\"siteCode\":\"${SITE_CODE:-}\",\"issuedAtUtc\":\"$ISSUED_AT\",\"expiresAtUtc\":\"$EXPIRES_AT\",\"nonce\":\"$NONCE\",\"signatureVersion\":\"hmac-sha256-v1\",\"signature\":\"$SIGNATURE\"}}"
+VALIDATE_PAYLOAD="{\"assessmentToken\":\"$TOKEN\",\"bundle\":{\"tenantId\":\"$TENANT_ID\",\"assetId\":\"$ASSET_ID\",\"siteCode\":\"${SITE_CODE:-}\",\"issuedAtUtc\":\"$ISSUED_AT\",\"expiresAtUtc\":\"$EXPIRES_AT\",\"nonce\":\"$NONCE\",\"signatureVersion\":\"hmac-sha256-v1\",\"signature\":\"$SIGNATURE\"}}"
 curl -fsS -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
   -H "Content-Type: application/json" \
   -d "$VALIDATE_PAYLOAD" >/dev/null || { echo "[erro] Validação do bundle falhou." >&2; exit 1; }
@@ -163,7 +163,7 @@ docker volume create compose_influxdb-local-data 2>/dev/null || true
 mkdir -p "$(dirname "$COMPOSE_DIR/.env")"
 cat > "$COMPOSE_DIR/.env" <<EOF
 TENANT_ID=$TENANT_ID
-AGENT_ID=$AGENT_ID
+ASSET_ID=$ASSET_ID
 SOLACE__HOST=$SOLACE_HOST
 SOLACE__PORT=1883
 SOLACE__VPN=default
@@ -180,4 +180,4 @@ docker compose -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$C
 
 echo "[install] Concluído."
 echo "[install] Assessment: http://$(hostname -I 2>/dev/null | awk '{print $1}'):3002"
-echo "[install] Tenant: $TENANT_ID | Agent: $AGENT_ID"
+echo "[install] Tenant: $TENANT_ID | Asset: $ASSET_ID"

@@ -87,7 +87,7 @@ docker volume create compose_influxdb-local-data 2>/dev/null || true
 
 # 5. Arrancar com config mínima (para Assessment)
 export TENANT_ID="${TENANT_ID:-unknown}"
-export AGENT_ID="${AGENT_ID:-unknown}"
+export ASSET_ID="${ASSET_ID:-unknown}"
 export SOLACE__HOST="${SOLACE_HOST:-192.168.56.30}"
 export SOLACE__PORT="${SOLACE__PORT:-1883}"
 
