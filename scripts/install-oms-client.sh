@@ -159,11 +159,16 @@ fi
 docker network create oms-shared-network 2>/dev/null || true
 docker volume create compose_influxdb-local-data 2>/dev/null || true
 
+# LOKI_URL: Promtail envia logs de sistema para Central. Derivar do host da API (porta 3100).
+LOKI_HOST="${LOKI_HOST:-$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')}"
+LOKI_URL="${LOKI_URL:-http://${LOKI_HOST}:3100/loki/api/v1/push}"
+
 # .env
 mkdir -p "$(dirname "$COMPOSE_DIR/.env")"
 cat > "$COMPOSE_DIR/.env" <<EOF
 TENANT_ID=$TENANT_ID
 ASSET_ID=$ASSET_ID
+LOKI_URL=$LOKI_URL
 SOLACE__HOST=$SOLACE_HOST
 SOLACE__PORT=1883
 SOLACE__VPN=default

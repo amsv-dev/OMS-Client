@@ -9,10 +9,12 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  # Central Loki endpoint with multi-tenant auth
-  - url: http://192.168.56.10:3100/loki/api/v1/push
-    tenant_id: ${ASSET_ID:-unknown}
+  # Central Loki endpoint — LOKI_URL no .env (ex: http://192.168.56.10:3100/loki/api/v1/push)
+  # Multi-tenant: X-Scope-OrgID = TENANT_ID; labels tenant_id + asset_id para queries
+  - url: ${LOKI_URL:-http://192.168.56.10:3100/loki/api/v1/push}
+    tenant_id: ${TENANT_ID:-unknown}
     external_labels:
+      tenant_id: ${TENANT_ID:-unknown}
       asset_id: ${ASSET_ID:-unknown}
 
 scrape_configs:

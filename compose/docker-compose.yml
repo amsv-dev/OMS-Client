@@ -83,6 +83,23 @@ services:
           cpus: '0.5'
           memory: 256M
 
+  # Promtail - Logs de sistema da VM client para Central Loki (multi-tenant)
+  promtail:
+    image: grafana/promtail:latest
+    container_name: client-promtail
+    restart: always
+    environment:
+      - TENANT_ID=${TENANT_ID:-unknown}
+      - ASSET_ID=${ASSET_ID:-unknown}
+      - LOKI_URL=${LOKI_URL:-http://192.168.56.10:3100/loki/api/v1/push}
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
+    networks:
+      - client-network
+
   # Assessment UI - Client onboarding frontend
   assessment:
     image: ${CLIENT_IMAGE_REGISTRY:-omsv2client.azurecr.io}/oms-assessment:${OMS_IMAGE_TAG:-latest}
