@@ -11,9 +11,9 @@ positions:
 clients:
   # Central Loki endpoint with multi-tenant auth
   - url: http://192.168.56.10:3100/loki/api/v1/push
-    tenant_id: ${AGENT_ID:-${CLIENT_ID}}
+    tenant_id: ${ASSET_ID:-unknown}
     external_labels:
-      agent_id: ${AGENT_ID:-${CLIENT_ID}}
+      asset_id: ${ASSET_ID:-unknown}
 
 scrape_configs:
   # ==========================================================================

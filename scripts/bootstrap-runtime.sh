@@ -10,7 +10,7 @@ Usage:
     --api-url "https://oms-central.example.com" \
     --assessment-token "<token>" \
     --tenant-id "<tenantId>" \
-    --agent-id "<agentId>" \
+    --asset-id "<assetId>" \
     --issued-at "<ISO8601>" \
     --expires-at "<ISO8601>" \
     --nonce "<nonce>" \
@@ -28,7 +28,7 @@ EOF
 API_URL=""
 ASSESSMENT_TOKEN=""
 TENANT_ID=""
-AGENT_ID=""
+ASSET_ID=""
 SITE_CODE=""
 ISSUED_AT=""
 EXPIRES_AT=""
@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
     --api-url) API_URL="$2"; shift 2 ;;
     --assessment-token) ASSESSMENT_TOKEN="$2"; shift 2 ;;
     --tenant-id) TENANT_ID="$2"; shift 2 ;;
-    --agent-id) AGENT_ID="$2"; shift 2 ;;
+    --asset-id) ASSET_ID="$2"; shift 2 ;;
     --site-code) SITE_CODE="$2"; shift 2 ;;
     --issued-at) ISSUED_AT="$2"; shift 2 ;;
     --expires-at) EXPIRES_AT="$2"; shift 2 ;;
@@ -68,7 +68,7 @@ required_vars=(
   API_URL
   ASSESSMENT_TOKEN
   TENANT_ID
-  AGENT_ID
+  ASSET_ID
   ISSUED_AT
   EXPIRES_AT
   NONCE
@@ -100,7 +100,7 @@ validation_payload="$(cat <<EOF
   "assessmentToken": "${ASSESSMENT_TOKEN}",
   "bundle": {
     "tenantId": "${TENANT_ID}",
-    "agentId": "${AGENT_ID}",
+    "assetId": "${ASSET_ID}",
     "siteCode": "${SITE_CODE}",
     "issuedAtUtc": "${ISSUED_AT}",
     "expiresAtUtc": "${EXPIRES_AT}",
@@ -121,7 +121,7 @@ echo "[bootstrap] Bundle validado: ${validation_response}"
 
 cat > "${COMPOSE_DIR}/.env" <<EOF
 TENANT_ID=${TENANT_ID}
-AGENT_ID=${AGENT_ID}
+ASSET_ID=${ASSET_ID}
 SOLACE__HOST=${SOLACE_HOST}
 SOLACE__PORT=1883
 SOLACE__VPN=default

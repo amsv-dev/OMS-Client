@@ -33,7 +33,7 @@ services:
       - HOST_SYS=/host/sys
       - HOST_ETC=/host/etc
       - TENANT_ID=${TENANT_ID:-unknown}
-      - AGENT_ID=${AGENT_ID:-unknown}
+      - ASSET_ID=${ASSET_ID:-unknown}
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - /proc:/host/proc:ro
@@ -54,7 +54,7 @@ services:
     environment:
       # Identidade runtime
       - TENANT_ID=${TENANT_ID:-unknown}
-      - AGENT_ID=${AGENT_ID:-unknown}
+      - ASSET_ID=${ASSET_ID:-unknown}
       - ASPNETCORE_ENVIRONMENT=Production
       
       # Solace - Comunicação com cloud layer
