@@ -119,9 +119,14 @@ validation_response="$(curl -fsS \
 
 echo "[bootstrap] Bundle validado: ${validation_response}"
 
+# LOKI_URL: Promtail envia logs de sistema. Derivar do host da API se não fornecido.
+LOKI_HOST="${LOKI_HOST:-$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')}"
+LOKI_URL="${LOKI_URL:-http://${LOKI_HOST}:3100/loki/api/v1/push}"
+
 cat > "${COMPOSE_DIR}/.env" <<EOF
 TENANT_ID=${TENANT_ID}
 ASSET_ID=${ASSET_ID}
+LOKI_URL=${LOKI_URL}
 SOLACE__HOST=${SOLACE_HOST}
 SOLACE__PORT=1883
 SOLACE__VPN=default
