@@ -119,9 +119,15 @@ validation_response="$(curl -fsS \
 
 echo "[bootstrap] Bundle validado: ${validation_response}"
 
-# LOKI_URL: Promtail envia logs de sistema. Derivar do host da API se não fornecido.
-LOKI_HOST="${LOKI_HOST:-$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')}"
-LOKI_URL="${LOKI_URL:-http://${LOKI_HOST}:3100/loki/api/v1/push}"
+# LOKI_URL: Promtail envia logs para Central. Se API usa Cloud proxy (:8443), Loki vai pelo mesmo proxy.
+if [[ -n "$LOKI_URL" ]]; then
+  : # já definido
+elif echo "$API_URL" | grep -qE ':8443/?$'; then
+  LOKI_URL="${API_URL%/}/loki/api/v1/push"
+else
+  LOKI_HOST="${LOKI_HOST:-$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')}"
+  LOKI_URL="http://${LOKI_HOST}:3100/loki/api/v1/push"
+fi
 
 cat > "${COMPOSE_DIR}/.env" <<EOF
 TENANT_ID=${TENANT_ID}
