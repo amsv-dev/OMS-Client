@@ -119,14 +119,23 @@ validation_response="$(curl -fsS \
 
 echo "[bootstrap] Bundle validado: ${validation_response}"
 
-# LOKI_URL: Promtail envia logs para Central. Se API usa Cloud proxy (:8443), Loki vai pelo mesmo proxy.
+# LOKI_URL: Promtail envia logs para Central.
+# - API em Cloud proxy (:8443) → Loki vai pelo mesmo proxy
+# - API host == SOLACE_HOST (Cloud) → Loki via api-proxy :8443 (Loki não corre na Cloud)
+# - API em Central directo → Loki na mesma host :3100
 if [[ -n "$LOKI_URL" ]]; then
   : # já definido
 elif echo "$API_URL" | grep -qE ':8443/?$'; then
   LOKI_URL="${API_URL%/}/loki/api/v1/push"
 else
-  LOKI_HOST="${LOKI_HOST:-$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')}"
-  LOKI_URL="http://${LOKI_HOST}:3100/loki/api/v1/push"
+  API_HOST="$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')"
+  if [[ "$API_HOST" == "$SOLACE_HOST" ]]; then
+    # Cloud: Solace e api-proxy na mesma VM. Loki vai pelo proxy :8443.
+    LOKI_URL="http://${SOLACE_HOST}:8443/loki/api/v1/push"
+  else
+    # Central directo: Loki na mesma host
+    LOKI_URL="http://${API_HOST}:3100/loki/api/v1/push"
+  fi
 fi
 
 cat > "${COMPOSE_DIR}/.env" <<EOF
