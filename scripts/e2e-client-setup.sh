@@ -56,9 +56,13 @@ fi
 
 echo "[e2e-setup] Tenant: $TENANT_ID | Asset: $ASSET_ID | Solace: $SOLACE_HOST"
 
-# LOKI_URL: derivar do Solace/Central se não definido
-LOKI_HOST="${LOKI_HOST:-$SOLACE_HOST}"
-LOKI_URL="${LOKI_URL:-http://${LOKI_HOST}:3100/loki/api/v1/push}"
+# LOKI_URL: Cloud proxy (:8443) ou directo à Central (:3100). Solace host = Cloud quando remoto.
+if [[ -n "$LOKI_URL" ]]; then
+  : # já definido
+else
+  LOKI_HOST="${LOKI_HOST:-$SOLACE_HOST}"
+  LOKI_URL="${LOKI_URL:-http://${LOKI_HOST}:8443/loki/api/v1/push}"
+fi
 
 # Criar compose/.env
 mkdir -p "$COMPOSE_DIR"
