@@ -3,8 +3,16 @@
 # A Central devolve tudo (bundle, Solace, apiUrl). O client só precisa do token.
 set -euo pipefail
 
+# URLs e conexões — via parâmetro ou env (Azure variable groups, .env export, etc). Sem IPs hardcoded.
+API_URL="${API_URL:-}"
+API_PROXY_PORT="${API_PROXY_PORT:-8443}"
+LOKI_PORT="${LOKI_PORT:-3100}"
+CLIENT_IMAGE_REGISTRY="${CLIENT_IMAGE_REGISTRY:-omsv2client.azurecr.io}"
+OMS_IMAGE_TAG="${OMS_IMAGE_TAG:-latest}"
+SOLACE_PORT="${SOLACE_PORT:-1883}"
+SOLACE_VPN="${SOLACE_VPN:-default}"
+
 TOKEN="${1:-}"
-API_URL="${2:-}"
 SITE_CODE="${SITE_CODE:-}"
 COMPOSE_DIR="${COMPOSE_DIR:-}"
 OMS_CLIENT_DIR="${OMS_CLIENT_DIR:-$HOME/oms-client}"
@@ -17,7 +25,7 @@ Uso:
   bash install-oms-client.sh <TOKEN> [API_URL]
 
   TOKEN   — Token de onboarding (obrigatório, enviado pelo admin)
-  API_URL — URL da API (opcional; ex: http://10.69.105.42:5000 ou proxy Cloud :8443)
+  API_URL — URL da API (parâmetro ou env API_URL; ex: Cloud proxy :8443 ou Central :5000)
 
 Opções:
   --site-code CODE   Site code para assetId (ex: site1 → e2e-test-site1)
@@ -25,7 +33,8 @@ Opções:
   --oms-client-dir   Raiz do projeto client
 
 Exemplo:
-  bash install-oms-client.sh e2e-test-token-123 http://10.69.105.42:5000 --site-code site1
+  API_URL=http://<cloud>:8443 bash install-oms-client.sh <TOKEN> --site-code site1
+  bash install-oms-client.sh <TOKEN> http://<central>:5000 --site-code site1
 
 A Central devolve: bundle (tenantId, assetId), Solace. O client só precisa do token.
 EOF
@@ -38,11 +47,13 @@ while [[ $# -gt 0 ]]; do
     --oms-client-dir) OMS_CLIENT_DIR="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *)
-      [[ -z "$TOKEN" ]] && TOKEN="$1" || [[ -z "$API_URL" ]] && API_URL="$1"
+      [[ -z "$TOKEN" ]] && TOKEN="$1" || { [[ -z "$API_URL" ]] && [[ "${1:0:1}" != "-" ]] && API_URL="$1"; }
       shift
       ;;
   esac
 done
+
+# API_URL: parâmetro posicional ou env. Se vazio, pedir interativamente.
 
 COMPOSE_DIR="${COMPOSE_DIR:-$OMS_CLIENT_DIR/compose}"
 
@@ -55,7 +66,7 @@ fi
 
 # API URL (necessário para chamar a Central)
 if [[ -z "$API_URL" ]]; then
-  echo -n "URL da API (ex: http://10.69.105.41:8443): "
+  echo -n "URL da API (Cloud proxy :8443 ou Central :5000): "
   read -r API_URL
   [[ -z "$API_URL" ]] && { echo "[erro] URL da API obrigatória." >&2; exit 1; }
 fi
@@ -115,9 +126,9 @@ curl -fsS -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
   -H "Content-Type: application/json" \
   -d "$VALIDATE_PAYLOAD" >/dev/null || { echo "[erro] Validação do bundle falhou." >&2; exit 1; }
 
-# Solace: pedir se a Central não devolveu
+# Solace: pedir se a Central não devolveu (ou definir SOLACE_HOST via env)
 if [[ -z "$SOLACE_HOST" ]]; then
-  echo -n "Solace host (IP da Cloud): "
+  echo -n "Solace host (IP/hostname da Cloud): "
   read -r SOLACE_HOST
   [[ -z "$SOLACE_HOST" ]] && { echo "[erro] Solace host obrigatório." >&2; exit 1; }
 fi
@@ -169,20 +180,20 @@ docker volume create compose_influxdb-local-data 2>/dev/null || true
 
 # LOKI_URL: Promtail envia logs para Central.
 # - API em Cloud proxy (:8443) → Loki vai pelo mesmo proxy
-# - API host == SOLACE_HOST (Cloud) → Loki via api-proxy :8443 (Loki não corre na Cloud)
-# - API em Central directo → Loki na mesma host :3100
+# - API host == SOLACE_HOST (Cloud) → Loki via api-proxy
+# - API em Central directo → Loki na mesma host
 if [[ -n "$LOKI_URL" ]]; then
   : # já definido
-elif echo "$API_URL" | grep -qE ':8443/?$'; then
+elif echo "$API_URL" | grep -qE ":${API_PROXY_PORT}/?$"; then
   LOKI_URL="${API_URL%/}/loki/api/v1/push"
 else
   API_HOST="$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')"
   if [[ "$API_HOST" == "$SOLACE_HOST" ]]; then
-    # Cloud: Solace e api-proxy na mesma VM. Loki vai pelo proxy :8443.
-    LOKI_URL="http://${SOLACE_HOST}:8443/loki/api/v1/push"
+    # Cloud: Solace e api-proxy na mesma VM. Loki vai pelo proxy.
+    LOKI_URL="http://${SOLACE_HOST}:${API_PROXY_PORT}/loki/api/v1/push"
   else
     # Central directo: Loki na mesma host
-    LOKI_URL="http://${API_HOST}:3100/loki/api/v1/push"
+    LOKI_URL="http://${API_HOST}:${LOKI_PORT}/loki/api/v1/push"
   fi
 fi
 
@@ -193,13 +204,13 @@ TENANT_ID=$TENANT_ID
 ASSET_ID=$ASSET_ID
 LOKI_URL=$LOKI_URL
 SOLACE__HOST=$SOLACE_HOST
-SOLACE__PORT=1883
-SOLACE__VPN=default
+SOLACE__PORT=$SOLACE_PORT
+SOLACE__VPN=$SOLACE_VPN
 SOLACE__USERNAME=$SOLACE_USERNAME
 SOLACE__PASSWORD=$SOLACE_PASSWORD
 ASPNETCORE_ENVIRONMENT=Production
-CLIENT_IMAGE_REGISTRY=omsv2client.azurecr.io
-OMS_IMAGE_TAG=latest
+CLIENT_IMAGE_REGISTRY=$CLIENT_IMAGE_REGISTRY
+OMS_IMAGE_TAG=$OMS_IMAGE_TAG
 EOF
 
 echo "[install] A arrancar stack..."
