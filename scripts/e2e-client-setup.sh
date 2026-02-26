@@ -7,7 +7,7 @@ set -euo pipefail
 OMS_CLIENT_DIR="${OMS_CLIENT_DIR:-$HOME/oms-client}"
 COMPOSE_DIR="${COMPOSE_DIR:-$OMS_CLIENT_DIR/compose}"
 TENANT_ID="${TENANT_ID:-e2e-test}"
-ASSET_ID="${ASSET_ID:-e2e-test-site1}"
+ASSET_ID="${ASSET_ID:-e2e-test-main}"
 SOLACE_HOST="${SOLACE_HOST:-}"
 
 usage() {
@@ -19,7 +19,7 @@ Uso:
 
   --solace-host IP   IP do Solace (obrigatório se SOLACE_HOST não estiver definido)
   --tenant-id ID     Tenant (default: e2e-test)
-  --asset-id ID      Asset (default: e2e-test-site1)
+  --asset-id ID      Asset (default: e2e-test-main)
   --oms-client-dir   Raiz do client (default: $HOME/oms-client). Para clone OMSv2: use client
 
 Exemplo (repo público com compose/, scripts/ na raiz):
