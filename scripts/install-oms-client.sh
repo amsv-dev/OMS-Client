@@ -56,6 +56,29 @@ done
 # API_URL: parâmetro posicional ou env. Se vazio, pedir interativamente.
 
 COMPOSE_DIR="${COMPOSE_DIR:-$OMS_CLIENT_DIR/compose}"
+OMS_CLIENT_REPO="${OMS_CLIENT_REPO:-https://github.com/amsv-dev/OMS-Client.git}"
+
+# Pré-requisitos: git, curl (instalar se Debian/Ubuntu)
+if [[ -f /etc/debian_version ]]; then
+  NEED_APT=
+  command -v git >/dev/null 2>&1 || NEED_APT=1
+  command -v curl >/dev/null 2>&1 || NEED_APT=1
+  if [[ -n "$NEED_APT" ]]; then
+    echo "[install] A instalar git e curl..."
+    sudo apt-get update -y
+    sudo apt-get install -y git curl ca-certificates
+  fi
+fi
+command -v git >/dev/null 2>&1 || { echo "[erro] git não encontrado. Instale: sudo apt-get install git" >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "[erro] curl não encontrado. Instale: sudo apt-get install curl" >&2; exit 1; }
+
+# Se o repo não existe, clonar (bootstrap: script pode ser executado via curl sem clone prévio)
+if [[ ! -f "$COMPOSE_DIR/docker-compose.yml" ]]; then
+  echo "[install] Repo não encontrado. A clonar $OMS_CLIENT_REPO para $OMS_CLIENT_DIR..."
+  mkdir -p "$(dirname "$OMS_CLIENT_DIR")"
+  git clone --depth 1 "$OMS_CLIENT_REPO" "$OMS_CLIENT_DIR"
+  echo "[install] Clone concluído."
+fi
 
 # Validar token
 if [[ -z "$TOKEN" ]]; then
@@ -71,8 +94,6 @@ if [[ -z "$API_URL" ]]; then
   [[ -z "$API_URL" ]] && { echo "[erro] URL da API obrigatória." >&2; exit 1; }
 fi
 API_URL="${API_URL%/}"
-
-command -v curl >/dev/null 2>&1 || { echo "[erro] curl não encontrado." >&2; exit 1; }
 
 echo "[install] A obter dados da Central (token válido)..."
 VALIDATE_URL="${API_URL}/api/assessment/validate"
