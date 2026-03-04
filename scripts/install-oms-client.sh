@@ -174,7 +174,10 @@ if ! command -v docker &>/dev/null; then
     sudo apt-get update -y
     sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     sudo usermod -aG docker "$USER" 2>/dev/null || true
-    echo "[install] Docker instalado. Faça logout e login, depois execute novamente."
+    echo "[install] Docker instalado."
+    echo "[install] 1) Faça 'exit' nesta sessão SSH."
+    echo "[install] 2) Volte a entrar na VM por SSH."
+    echo "[install] 3) Execute o mesmo comando novamente (o script continuará a partir daqui)."
     exit 0
   else
     echo "[erro] Instalação automática só em Debian/Ubuntu." >&2
@@ -199,23 +202,24 @@ fi
 docker network create oms-shared-network 2>/dev/null || true
 docker volume create compose_influxdb-local-data 2>/dev/null || true
 
-# LOKI_URL: Promtail envia logs para Central.
-# - API em Cloud proxy (:8443) → Loki vai pelo mesmo proxy
-# - API host == SOLACE_HOST (Cloud) → Loki via api-proxy
-# - API em Central directo → Loki na mesma host
-if [[ -n "$LOKI_URL" ]]; then
-  : # já definido
+# LOKI_URL: derivada do URL da Cloud/Central — o cliente NÃO fornece; Promtail envia logs por aqui.
+# (Só se vier em env é que usamos; caso contrário derivamos do API_URL/SOLACE_HOST.)
+if [[ -n "${LOKI_URL:-}" ]]; then
+  : # já definido (env)
 elif echo "$API_URL" | grep -qE ":${API_PROXY_PORT}/?$"; then
   LOKI_URL="${API_URL%/}/loki/api/v1/push"
 else
   API_HOST="$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')"
-  if [[ "$API_HOST" == "$SOLACE_HOST" ]]; then
-    # Cloud: Solace e api-proxy na mesma VM. Loki vai pelo proxy.
+  if [[ -n "$SOLACE_HOST" ]] && [[ "$API_HOST" == "$SOLACE_HOST" ]]; then
     LOKI_URL="http://${SOLACE_HOST}:${API_PROXY_PORT}/loki/api/v1/push"
   else
-    # Central directo: Loki na mesma host
     LOKI_URL="http://${API_HOST}:${LOKI_PORT}/loki/api/v1/push"
   fi
+fi
+# Garantir que nunca fica vazia (fallback pelo mesmo host do API_URL)
+if [[ -z "${LOKI_URL:-}" ]]; then
+  API_HOST="$(echo "$API_URL" | sed -E 's|https?://([^:/]+).*|\1|')"
+  LOKI_URL="http://${API_HOST}:${API_PROXY_PORT}/loki/api/v1/push"
 fi
 
 # .env
