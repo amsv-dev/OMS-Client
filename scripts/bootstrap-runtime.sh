@@ -19,7 +19,7 @@ Usage:
     --solace-username "<username>" \
     --solace-password "<password>" \
     [--site-code "<siteCode>"] \
-    [--image-registry "omsv2client.azurecr.io"] \
+    [--image-registry "ghcr.io/amsv-dev"] \
     [--image-tag "latest"] \
     [--compose-dir "global/client/compose"]
 EOF
@@ -37,7 +37,7 @@ SIGNATURE=""
 SOLACE_HOST=""
 SOLACE_USERNAME=""
 SOLACE_PASSWORD=""
-CLIENT_IMAGE_REGISTRY="omsv2client.azurecr.io"
+CLIENT_IMAGE_REGISTRY="ghcr.io/amsv-dev"
 IMAGE_TAG="latest"
 COMPOSE_DIR="global/client/compose"
 
