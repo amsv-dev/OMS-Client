@@ -48,9 +48,9 @@ services:
       - client-network
 
   # Customer Agent - Replica métricas, processa alertas, executa comandos
-  # CLIENT_IMAGE_REGISTRY: ACR client público (default) ou omsv2acr para testes
+  # CLIENT_IMAGE_REGISTRY: ghcr.io público (pull sem login) ou override para testes
   customer-agent:
-    image: ${CLIENT_IMAGE_REGISTRY:-omsv2client.azurecr.io}/oms-customer-agent:${OMS_IMAGE_TAG:-latest}
+    image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-customer-agent:${OMS_IMAGE_TAG:-latest}
     container_name: client-customer-agent
     restart: always
     env_file:
@@ -106,7 +106,7 @@ services:
 
   # Assessment UI - Client onboarding frontend
   assessment:
-    image: ${CLIENT_IMAGE_REGISTRY:-omsv2client.azurecr.io}/oms-assessment:${OMS_IMAGE_TAG:-latest}
+    image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-assessment:${OMS_IMAGE_TAG:-latest}
     container_name: client-assessment
     restart: always
     ports:
