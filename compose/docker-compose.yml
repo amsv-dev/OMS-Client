@@ -117,7 +117,7 @@ services:
       - client-network
 
   # NOTE: Remote execution via CommandReceiverService (Solace)
-  # See docs/decisions/ADR-001-remote-execution.md
+  # See documentacao/decisoes/ADR-001-remote-execution.md
 
   # Demo Triggers - Serviço de teste para disparar eventos (apenas dev)
   demo-triggers:
