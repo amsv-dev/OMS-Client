@@ -36,6 +36,8 @@ services:
       - HOST_ETC=/host/etc
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
+      - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
+      - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - /proc:/host/proc:ro
@@ -59,6 +61,8 @@ services:
       # Identidade runtime
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
+      - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
+      - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
       - ASPNETCORE_ENVIRONMENT=Production
       
       # Solace - Comunicação com cloud layer
@@ -67,6 +71,7 @@ services:
       - SOLACE__VPN=${SOLACE__VPN:-default}
       - SOLACE__USERNAME=${SOLACE__USERNAME:-default}
       - SOLACE__PASSWORD=${SOLACE__PASSWORD:-default}
+      - METRICS_TOPIC_PREFIX=${METRICS_TOPIC_PREFIX:-oms.metrics.frames}
       
       # InfluxDB Local - Leitura de métricas
       - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
