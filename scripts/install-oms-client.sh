@@ -16,6 +16,8 @@ TOKEN=""
 SITE_CODE="${SITE_CODE:-}"
 COMPOSE_DIR="${COMPOSE_DIR:-}"
 OMS_CLIENT_DIR="${OMS_CLIENT_DIR:-$HOME/oms-client}"
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo '')"
+HOSTNAME_SHORT="${HOSTNAME_SHORT,,}"
 
 usage() {
   cat <<'EOF'
@@ -38,6 +40,24 @@ Exemplo:
 
 A Central devolve: bundle (tenantId, assetId), Solace. O client só precisa do token.
 EOF
+}
+
+normalize_site_code() {
+  local raw="${1:-}"
+  local normalized
+  normalized="$(echo "$raw" | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')"
+  [[ -n "$normalized" ]] && echo "$normalized" || echo "main"
+}
+
+detect_primary_ip() {
+  local ip=""
+  if command -v hostname >/dev/null 2>&1; then
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  fi
+  if [[ -z "$ip" ]] && command -v ip >/dev/null 2>&1; then
+    ip="$(ip -o -4 route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i==\"src\") {print $(i+1); exit}}')"
+  fi
+  echo "$ip"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -95,6 +115,13 @@ if [[ -z "$API_URL" ]]; then
 fi
 API_URL="${API_URL%/}"
 
+if [[ -z "$SITE_CODE" ]]; then
+  SITE_CODE="$(normalize_site_code "$HOSTNAME_SHORT")"
+else
+  SITE_CODE="$(normalize_site_code "${SITE_CODE,,}")"
+fi
+HOST_IP="$(detect_primary_ip)"
+
 echo "[install] A obter dados da Central (token válido)..."
 VALIDATE_URL="${API_URL}/api/assessment/validate"
 [[ -n "$SITE_CODE" ]] && VALIDATE_URL="${VALIDATE_URL}?siteCode=${SITE_CODE}"
@@ -142,7 +169,64 @@ fi
 
 # Validar bundle na API
 echo "[install] A validar bundle..."
-VALIDATE_PAYLOAD="{\"assessmentToken\":\"$TOKEN\",\"bundle\":{\"tenantId\":\"$TENANT_ID\",\"assetId\":\"$ASSET_ID\",\"siteCode\":\"${SITE_CODE:-}\",\"issuedAtUtc\":\"$ISSUED_AT\",\"expiresAtUtc\":\"$EXPIRES_AT\",\"nonce\":\"$NONCE\",\"signatureVersion\":\"hmac-sha256-v1\",\"signature\":\"$SIGNATURE\"}}"
+if command -v jq >/dev/null 2>&1; then
+  VALIDATE_PAYLOAD="$(jq -cn \
+    --arg token "$TOKEN" \
+    --arg tenantId "$TENANT_ID" \
+    --arg assetId "$ASSET_ID" \
+    --arg siteCode "${SITE_CODE:-}" \
+    --arg issuedAt "$ISSUED_AT" \
+    --arg expiresAt "$EXPIRES_AT" \
+    --arg nonce "$NONCE" \
+    --arg signature "$SIGNATURE" \
+    --arg hostname "${HOSTNAME_SHORT}" \
+    --arg ipAddress "${HOST_IP}" \
+    '{
+      assessmentToken: $token,
+      bundle: {
+        tenantId: $tenantId,
+        assetId: $assetId,
+        siteCode: $siteCode,
+        issuedAtUtc: $issuedAt,
+        expiresAtUtc: $expiresAt,
+        nonce: $nonce,
+        signatureVersion: "hmac-sha256-v1",
+        signature: $signature
+      },
+      hostname: $hostname,
+      ipAddress: $ipAddress,
+      assetName: $hostname,
+      assetType: "server",
+      instanceLabel: $hostname
+    }')"
+elif command -v python3 >/dev/null 2>&1; then
+  VALIDATE_PAYLOAD="$(python3 - <<PY
+import json
+payload = {
+  "assessmentToken": "$TOKEN",
+  "bundle": {
+    "tenantId": "$TENANT_ID",
+    "assetId": "$ASSET_ID",
+    "siteCode": "${SITE_CODE:-}",
+    "issuedAtUtc": "$ISSUED_AT",
+    "expiresAtUtc": "$EXPIRES_AT",
+    "nonce": "$NONCE",
+    "signatureVersion": "hmac-sha256-v1",
+    "signature": "$SIGNATURE"
+  },
+  "hostname": "${HOSTNAME_SHORT}",
+  "ipAddress": "${HOST_IP}",
+  "assetName": "${HOSTNAME_SHORT}",
+  "assetType": "server",
+  "instanceLabel": "${HOSTNAME_SHORT}"
+}
+print(json.dumps(payload))
+PY
+)"
+else
+  echo "[erro] jq ou python3 é obrigatório para gerar payload JSON de validação." >&2
+  exit 1
+fi
 curl -fsS -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
   -H "Content-Type: application/json" \
   -d "$VALIDATE_PAYLOAD" >/dev/null || { echo "[erro] Validação do bundle falhou." >&2; exit 1; }
