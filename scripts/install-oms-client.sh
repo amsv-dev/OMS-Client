@@ -49,6 +49,76 @@ normalize_site_code() {
   [[ -n "$normalized" ]] && echo "$normalized" || echo "main"
 }
 
+is_interactive_tty() {
+  [[ -t 0 && -t 1 ]]
+}
+
+is_generic_site_code() {
+  local code="${1:-}"
+  case "$code" in
+    main|cliente|client|server|ubuntu|linux|vm|host|localhost)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+confirm_yes_no() {
+  local prompt="$1"
+  local answer=""
+  echo -n "$prompt"
+  read -r answer || true
+  case "${answer,,}" in
+    y|yes|s|sim) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+prompt_site_code_if_needed() {
+  local suggested="$1"
+  local selected="${SITE_CODE:-}"
+  local raw_input=""
+
+  if [[ -n "$selected" ]]; then
+    SITE_CODE="$(normalize_site_code "${selected,,}")"
+    return
+  fi
+
+  if ! is_interactive_tty; then
+    SITE_CODE="$(normalize_site_code "$suggested")"
+    return
+  fi
+
+  echo "[install] Cada VM deve ter um siteCode único dentro do tenant."
+  echo "[install] Sugestão baseada no hostname atual: $suggested"
+
+  while true; do
+    echo -n "Site code para este asset [$suggested]: "
+    read -r raw_input || true
+    raw_input="${raw_input:-$suggested}"
+    selected="$(normalize_site_code "${raw_input,,}")"
+
+    if [[ -z "$selected" ]]; then
+      echo "[erro] siteCode inválido. Tente novamente."
+      continue
+    fi
+
+    if is_generic_site_code "$selected"; then
+      echo "[aviso] '$selected' é genérico e pode colidir entre VMs."
+      if confirm_yes_no "Usar mesmo assim? (s/N): "; then
+        SITE_CODE="$selected"
+        return
+      fi
+      continue
+    fi
+
+    SITE_CODE="$selected"
+    return
+  done
+}
+
 detect_primary_ip() {
   local ip=""
   if command -v hostname >/dev/null 2>&1; then
@@ -115,11 +185,8 @@ if [[ -z "$API_URL" ]]; then
 fi
 API_URL="${API_URL%/}"
 
-if [[ -z "$SITE_CODE" ]]; then
-  SITE_CODE="$(normalize_site_code "$HOSTNAME_SHORT")"
-else
-  SITE_CODE="$(normalize_site_code "${SITE_CODE,,}")"
-fi
+SUGGESTED_SITE_CODE="$(normalize_site_code "$HOSTNAME_SHORT")"
+prompt_site_code_if_needed "$SUGGESTED_SITE_CODE"
 HOST_IP="$(detect_primary_ip)"
 
 echo "[install] A obter dados da Central (token válido)..."
@@ -227,9 +294,59 @@ else
   echo "[erro] jq ou python3 é obrigatório para gerar payload JSON de validação." >&2
   exit 1
 fi
-curl -fsS -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
-  -H "Content-Type: application/json" \
-  -d "$VALIDATE_PAYLOAD" >/dev/null || { echo "[erro] Validação do bundle falhou." >&2; exit 1; }
+VALIDATE_BUNDLE_TMP="$(mktemp)"
+HTTP_CODE="$(
+  curl -sS \
+    -o "$VALIDATE_BUNDLE_TMP" \
+    -w "%{http_code}" \
+    -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
+    -H "Content-Type: application/json" \
+    -d "$VALIDATE_PAYLOAD"
+)"
+
+if [[ "$HTTP_CODE" -lt 200 || "$HTTP_CODE" -ge 300 ]]; then
+  if command -v jq >/dev/null 2>&1; then
+    ERROR_MESSAGE="$(jq -r '.message // .validationError // empty' "$VALIDATE_BUNDLE_TMP" 2>/dev/null || true)"
+  elif command -v python3 >/dev/null 2>&1; then
+    ERROR_MESSAGE="$(python3 - <<PY 2>/dev/null || true
+import json
+import sys
+try:
+    data = json.load(open("$VALIDATE_BUNDLE_TMP"))
+    print(data.get("message") or data.get("validationError") or "")
+except Exception:
+    print("")
+PY
+)"
+  else
+    ERROR_MESSAGE=""
+  fi
+  if [[ -n "${ERROR_MESSAGE:-}" ]]; then
+    echo "[erro] Validação do bundle falhou: $ERROR_MESSAGE" >&2
+  else
+    echo "[erro] Validação do bundle falhou (HTTP $HTTP_CODE)." >&2
+  fi
+  echo "[erro] Dica: para outra VM no mesmo tenant, use siteCode único (ex: --site-code vm2)." >&2
+  rm -f "$VALIDATE_BUNDLE_TMP"
+  exit 1
+fi
+
+if command -v jq >/dev/null 2>&1; then
+  ASSET_ACTION="$(jq -r '.assetAction // empty' "$VALIDATE_BUNDLE_TMP" 2>/dev/null || true)"
+  IDENTITY_WARNING="$(jq -r '.identityWarning // empty' "$VALIDATE_BUNDLE_TMP" 2>/dev/null || true)"
+else
+  ASSET_ACTION=""
+  IDENTITY_WARNING=""
+fi
+
+if [[ -n "$ASSET_ACTION" ]]; then
+  echo "[install] Runtime asset action: $ASSET_ACTION"
+fi
+if [[ -n "$IDENTITY_WARNING" ]]; then
+  echo "[install][aviso] $IDENTITY_WARNING"
+fi
+
+rm -f "$VALIDATE_BUNDLE_TMP"
 
 # Solace: pedir se a Central não devolveu (ou definir SOLACE_HOST via env)
 if [[ -z "$SOLACE_HOST" ]]; then
