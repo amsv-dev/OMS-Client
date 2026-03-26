@@ -30,6 +30,7 @@ services:
     restart: always
     env_file:
       - .env
+      - ./secrets/logical-assets.env
     environment:
       - HOST_PROC=/host/proc
       - HOST_SYS=/host/sys
@@ -43,11 +44,19 @@ services:
       - SERVICE_TYPE=${SERVICE_TYPE:-host}
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
+      - DB_REMOTE_COLLECTORS_ENABLED=${DB_REMOTE_COLLECTORS_ENABLED:-false}
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - ./telegraf/conf.d:/etc/telegraf/telegraf.d:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc:/host/etc:ro
+    command:
+      - telegraf
+      - --config
+      - /etc/telegraf/telegraf.conf
+      - --config-directory
+      - /etc/telegraf/telegraf.d
     depends_on:
       influxdb-local:
         condition: service_healthy
@@ -82,6 +91,7 @@ services:
       - SOLACE__USERNAME=${SOLACE__USERNAME:-default}
       - SOLACE__PASSWORD=${SOLACE__PASSWORD:-default}
       - METRICS_TOPIC_PREFIX=${METRICS_TOPIC_PREFIX:-oms.metrics.frames}
+      - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver}
       
       # InfluxDB Local - Leitura de métricas
       - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
