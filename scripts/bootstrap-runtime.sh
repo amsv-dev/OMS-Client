@@ -112,7 +112,6 @@ validation_payload="$(cat <<EOF
     "nonce": "${NONCE}",
     "signatureVersion": "hmac-sha256-v1",
     "signature": "${SIGNATURE}"
-  }
   },
   "hostname": "${HOSTNAME_SHORT}",
   "ipAddress": "${HOST_IP}",
