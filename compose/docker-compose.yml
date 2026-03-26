@@ -84,6 +84,7 @@ services:
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
       - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:${LOCAL_RUNTIME_API_PORT:-5808}
       
       # Solace - Comunicação com cloud layer
       - SOLACE__HOST=${SOLACE__HOST:-192.168.56.30}
@@ -128,6 +129,7 @@ services:
     environment:
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
+      - LOCAL_RUNTIME_API_URL=${LOCAL_RUNTIME_API_URL:-/runtime-local}
       - LOKI_URL=${LOKI_URL:-http://192.168.56.10:3100/loki/api/v1/push}
     volumes:
       - /var/log:/var/log:ro
