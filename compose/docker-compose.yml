@@ -30,7 +30,6 @@ services:
     restart: always
     env_file:
       - .env
-      - ./secrets/logical-assets.env
     environment:
       - HOST_PROC=/host/proc
       - HOST_SYS=/host/sys
@@ -57,6 +56,8 @@ services:
       - /etc/telegraf/telegraf.conf
       - --config-directory
       - /etc/telegraf/telegraf.d
+      - --watch-config
+      - poll
     depends_on:
       influxdb-local:
         condition: service_healthy
@@ -92,6 +93,11 @@ services:
       - SOLACE__PASSWORD=${SOLACE__PASSWORD:-default}
       - METRICS_TOPIC_PREFIX=${METRICS_TOPIC_PREFIX:-oms.metrics.frames}
       - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver}
+      - CENTRAL_API_URL=${CENTRAL_API_URL:-}
+      - ASSESSMENT_TOKEN=${ASSESSMENT_TOKEN:-}
+      - LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=${LOGICAL_ASSET_SYNC_INTERVAL_SECONDS:-60}
+      - LOGICAL_COLLECTOR_CONF_DIR=/app/telegraf-conf.d
+      - LOGICAL_SECRET_STORE_PATH=/app/secrets/logical-secret-store.json
       
       # InfluxDB Local - Leitura de métricas
       - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
@@ -103,6 +109,8 @@ services:
         condition: service_healthy
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
+      - ./telegraf/conf.d:/app/telegraf-conf.d
+      - ./secrets:/app/secrets
     networks:
       - client-network
       - oms-shared-network
