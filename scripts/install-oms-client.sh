@@ -248,8 +248,11 @@ if command -v jq >/dev/null 2>&1; then
     --arg signature "$SIGNATURE" \
     --arg hostname "${HOSTNAME_SHORT}" \
     --arg ipAddress "${HOST_IP}" \
+    --arg runtimeHealthStatus "bootstrap-validated" \
     '{
       assessmentToken: $token,
+      activateRuntime: false,
+      runtimeHealthStatus: $runtimeHealthStatus,
       bundle: {
         tenantId: $tenantId,
         assetId: $assetId,
@@ -271,6 +274,8 @@ elif command -v python3 >/dev/null 2>&1; then
 import json
 payload = {
   "assessmentToken": "$TOKEN",
+  "activateRuntime": False,
+  "runtimeHealthStatus": "bootstrap-validated",
   "bundle": {
     "tenantId": "$TENANT_ID",
     "assetId": "$ASSET_ID",
@@ -332,13 +337,18 @@ PY
 fi
 
 if command -v jq >/dev/null 2>&1; then
+  BOOTSTRAP_STAGE="$(jq -r '.stage // empty' "$VALIDATE_BUNDLE_TMP" 2>/dev/null || true)"
   ASSET_ACTION="$(jq -r '.assetAction // empty' "$VALIDATE_BUNDLE_TMP" 2>/dev/null || true)"
   IDENTITY_WARNING="$(jq -r '.identityWarning // empty' "$VALIDATE_BUNDLE_TMP" 2>/dev/null || true)"
 else
+  BOOTSTRAP_STAGE=""
   ASSET_ACTION=""
   IDENTITY_WARNING=""
 fi
 
+if [[ -n "$BOOTSTRAP_STAGE" ]]; then
+  echo "[install] Runtime stage: $BOOTSTRAP_STAGE"
+fi
 if [[ -n "$ASSET_ACTION" ]]; then
   echo "[install] Runtime asset action: $ASSET_ACTION"
 fi
@@ -428,6 +438,7 @@ mkdir -p "$(dirname "$COMPOSE_DIR/.env")"
 cat > "$COMPOSE_DIR/.env" <<EOF
 TENANT_ID=$TENANT_ID
 ASSET_ID=$ASSET_ID
+RUNTIME_ASSET_ID=$ASSET_ID
 LOKI_URL=$LOKI_URL
 SOLACE__HOST=$SOLACE_HOST
 SOLACE__PORT=$SOLACE_PORT
@@ -442,6 +453,102 @@ EOF
 echo "[install] A arrancar stack..."
 cd "$(dirname "$COMPOSE_DIR")"
 docker compose -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$COMPOSE_DIR/.env" up -d --remove-orphans
+
+echo "[install] A validar runtime health local antes da ativação..."
+if ! docker ps --format '{{.Names}}' | grep -q '^client-customer-agent$'; then
+  echo "[erro] customer-agent não está a correr; runtime activation não será concluída." >&2
+  exit 1
+fi
+
+echo "[install] A ativar runtime asset (catálogo + Grafana)..."
+if command -v jq >/dev/null 2>&1; then
+  ACTIVATE_PAYLOAD="$(jq -cn \
+    --arg token "$TOKEN" \
+    --arg tenantId "$TENANT_ID" \
+    --arg assetId "$ASSET_ID" \
+    --arg siteCode "${SITE_CODE:-}" \
+    --arg issuedAt "$ISSUED_AT" \
+    --arg expiresAt "$EXPIRES_AT" \
+    --arg nonce "$NONCE" \
+    --arg signature "$SIGNATURE" \
+    --arg hostname "${HOSTNAME_SHORT}" \
+    --arg ipAddress "${HOST_IP}" \
+    --arg runtimeHealthStatus "active" \
+    '{
+      assessmentToken: $token,
+      activateRuntime: true,
+      runtimeHealthStatus: $runtimeHealthStatus,
+      runtimeCheckedAtUtc: (now | todateiso8601),
+      bundle: {
+        tenantId: $tenantId,
+        assetId: $assetId,
+        siteCode: $siteCode,
+        issuedAtUtc: $issuedAt,
+        expiresAtUtc: $expiresAt,
+        nonce: $nonce,
+        signatureVersion: "hmac-sha256-v1",
+        signature: $signature
+      },
+      hostname: $hostname,
+      ipAddress: $ipAddress,
+      assetName: $hostname,
+      assetType: "server",
+      instanceLabel: $hostname
+    }')"
+elif command -v python3 >/dev/null 2>&1; then
+  ACTIVATE_PAYLOAD="$(python3 - <<PY
+import json
+from datetime import datetime, timezone
+payload = {
+  "assessmentToken": "$TOKEN",
+  "activateRuntime": True,
+  "runtimeHealthStatus": "active",
+  "runtimeCheckedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+  "bundle": {
+    "tenantId": "$TENANT_ID",
+    "assetId": "$ASSET_ID",
+    "siteCode": "${SITE_CODE:-}",
+    "issuedAtUtc": "$ISSUED_AT",
+    "expiresAtUtc": "$EXPIRES_AT",
+    "nonce": "$NONCE",
+    "signatureVersion": "hmac-sha256-v1",
+    "signature": "$SIGNATURE"
+  },
+  "hostname": "${HOSTNAME_SHORT}",
+  "ipAddress": "${HOST_IP}",
+  "assetName": "${HOSTNAME_SHORT}",
+  "assetType": "server",
+  "instanceLabel": "${HOSTNAME_SHORT}"
+}
+print(json.dumps(payload))
+PY
+)"
+else
+  echo "[erro] jq ou python3 é obrigatório para gerar payload JSON de ativação." >&2
+  exit 1
+fi
+
+ACTIVATE_TMP="$(mktemp)"
+ACTIVATE_HTTP_CODE="$(
+  curl -sS \
+    -o "$ACTIVATE_TMP" \
+    -w "%{http_code}" \
+    -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
+    -H "Content-Type: application/json" \
+    -d "$ACTIVATE_PAYLOAD"
+)"
+if [[ "$ACTIVATE_HTTP_CODE" -lt 200 || "$ACTIVATE_HTTP_CODE" -ge 300 ]]; then
+  echo "[erro] Runtime activation falhou (HTTP $ACTIVATE_HTTP_CODE)." >&2
+  rm -f "$ACTIVATE_TMP"
+  exit 1
+fi
+if command -v jq >/dev/null 2>&1; then
+  ACTIVATE_STAGE="$(jq -r '.stage // empty' "$ACTIVATE_TMP" 2>/dev/null || true)"
+  ACTIVATE_ASSET_ACTION="$(jq -r '.assetAction // empty' "$ACTIVATE_TMP" 2>/dev/null || true)"
+  [[ -n "$ACTIVATE_STAGE" ]] && echo "[install] Runtime stage: $ACTIVATE_STAGE"
+  [[ -n "$ACTIVATE_ASSET_ACTION" ]] && echo "[install] Runtime asset action: $ACTIVATE_ASSET_ACTION"
+fi
+rm -f "$ACTIVATE_TMP"
 
 echo "[install] Concluído."
 echo "[install] Assessment: http://$(hostname -I 2>/dev/null | awk '{print $1}'):3002"

@@ -94,10 +94,15 @@ if [[ ! -f "${COMPOSE_DIR}/docker-compose.yml" ]]; then
   exit 1
 fi
 
-echo "[bootstrap] Validar runtime identity bundle com OMS Central..."
+HOSTNAME_SHORT="$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo '')"
+HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+
+echo "[bootstrap] Validar runtime identity bundle (bootstrap stage) com OMS Central..."
 validation_payload="$(cat <<EOF
 {
   "assessmentToken": "${ASSESSMENT_TOKEN}",
+  "activateRuntime": false,
+  "runtimeHealthStatus": "bootstrap-validated",
   "bundle": {
     "tenantId": "${TENANT_ID}",
     "assetId": "${ASSET_ID}",
@@ -108,6 +113,12 @@ validation_payload="$(cat <<EOF
     "signatureVersion": "hmac-sha256-v1",
     "signature": "${SIGNATURE}"
   }
+  },
+  "hostname": "${HOSTNAME_SHORT}",
+  "ipAddress": "${HOST_IP}",
+  "assetName": "${HOSTNAME_SHORT}",
+  "assetType": "server",
+  "instanceLabel": "${HOSTNAME_SHORT}"
 }
 EOF
 )"
@@ -141,6 +152,7 @@ fi
 cat > "${COMPOSE_DIR}/.env" <<EOF
 TENANT_ID=${TENANT_ID}
 ASSET_ID=${ASSET_ID}
+RUNTIME_ASSET_ID=${ASSET_ID}
 LOKI_URL=${LOKI_URL}
 SOLACE__HOST=${SOLACE_HOST}
 SOLACE__PORT=1883
@@ -154,4 +166,42 @@ EOF
 
 echo "[bootstrap] Arrancar stack cliente..."
 docker compose -f "${COMPOSE_DIR}/docker-compose.yml" --env-file "${COMPOSE_DIR}/.env" up -d --remove-orphans
+
+if ! docker ps --format '{{.Names}}' | grep -q '^client-customer-agent$'; then
+  echo "[bootstrap][erro] customer-agent não está a correr; runtime activation não será concluída." >&2
+  exit 1
+fi
+
+echo "[bootstrap] Ativar runtime asset (catálogo + Grafana)..."
+activation_payload="$(cat <<EOF
+{
+  "assessmentToken": "${ASSESSMENT_TOKEN}",
+  "activateRuntime": true,
+  "runtimeHealthStatus": "active",
+  "runtimeCheckedAtUtc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "bundle": {
+    "tenantId": "${TENANT_ID}",
+    "assetId": "${ASSET_ID}",
+    "siteCode": "${SITE_CODE}",
+    "issuedAtUtc": "${ISSUED_AT}",
+    "expiresAtUtc": "${EXPIRES_AT}",
+    "nonce": "${NONCE}",
+    "signatureVersion": "hmac-sha256-v1",
+    "signature": "${SIGNATURE}"
+  },
+  "hostname": "${HOSTNAME_SHORT}",
+  "ipAddress": "${HOST_IP}",
+  "assetName": "${HOSTNAME_SHORT}",
+  "assetType": "server",
+  "instanceLabel": "${HOSTNAME_SHORT}"
+}
+EOF
+)"
+
+activation_response="$(curl -fsS \
+  -X POST "${API_URL%/}/api/assessment/runtime/validate-bundle" \
+  -H "Content-Type: application/json" \
+  --data "${activation_payload}")"
+
+echo "[bootstrap] Runtime ativado: ${activation_response}"
 echo "[bootstrap] Concluído."

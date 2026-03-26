@@ -36,6 +36,11 @@ services:
       - HOST_ETC=/host/etc
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
+      - RUNTIME_ASSET_ID=${RUNTIME_ASSET_ID:-${ASSET_ID:-unknown}}
+      - LOGICAL_ASSET_ID=${LOGICAL_ASSET_ID:-}
+      - COLLECTOR_TYPE=${COLLECTOR_TYPE:-telegraf}
+      - ORIGIN_SCOPE=${ORIGIN_SCOPE:-local}
+      - SERVICE_TYPE=${SERVICE_TYPE:-host}
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
     volumes:
@@ -61,6 +66,11 @@ services:
       # Identidade runtime
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
+      - RUNTIME_ASSET_ID=${RUNTIME_ASSET_ID:-${ASSET_ID:-unknown}}
+      - LOGICAL_ASSET_ID=${LOGICAL_ASSET_ID:-}
+      - COLLECTOR_TYPE=${COLLECTOR_TYPE:-telegraf}
+      - ORIGIN_SCOPE=${ORIGIN_SCOPE:-local}
+      - SERVICE_TYPE=${SERVICE_TYPE:-host}
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
       - ASPNETCORE_ENVIRONMENT=Production
