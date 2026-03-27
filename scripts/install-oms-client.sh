@@ -42,6 +42,15 @@ A Central devolve: bundle (tenantId, assetId), Solace. O client só precisa do t
 EOF
 }
 
+require_env_value() {
+  local key="$1"
+  local value="${2:-}"
+  if [[ -z "$value" ]]; then
+    echo "[erro] ${key} em falta na configuração. Abortar para evitar runtime incompleto." >&2
+    exit 1
+  fi
+}
+
 normalize_site_code() {
   local raw="${1:-}"
   local normalized
@@ -233,6 +242,11 @@ if [[ -z "$TENANT_ID" ]] || [[ -z "$ASSET_ID" ]]; then
   echo "$RESPONSE" | head -c 500
   exit 1
 fi
+
+require_env_value "API_URL" "$API_URL"
+require_env_value "TOKEN" "$TOKEN"
+require_env_value "TENANT_ID" "$TENANT_ID"
+require_env_value "ASSET_ID" "$ASSET_ID"
 
 # Validar bundle na API
 echo "[install] A validar bundle..."
@@ -461,9 +475,32 @@ CLIENT_IMAGE_REGISTRY=$CLIENT_IMAGE_REGISTRY
 OMS_IMAGE_TAG=$OMS_IMAGE_TAG
 EOF
 
+# Hard fail se alguma chave obrigatória ficou vazia no .env (self-service must-have)
+for required in TENANT_ID ASSET_ID CENTRAL_API_URL ASSESSMENT_TOKEN; do
+  if ! grep -q "^${required}=.\\+" "$COMPOSE_DIR/.env"; then
+    echo "[erro] .env inválido: ${required} vazio ou ausente. Abortar." >&2
+    echo "[erro] Execute novamente com token/API corretos: bash scripts/install-oms-client.sh <TOKEN> <API_URL>" >&2
+    exit 1
+  fi
+done
+
 echo "[install] A arrancar stack..."
 cd "$(dirname "$COMPOSE_DIR")"
 docker compose -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$COMPOSE_DIR/.env" up -d --remove-orphans
+
+# Verificação runtime: customer-agent deve receber token e URL central já no container
+runtime_env_dump="$(docker inspect client-customer-agent --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+if [[ -z "$runtime_env_dump" ]]; then
+  echo "[erro] Não foi possível inspecionar o container client-customer-agent." >&2
+  exit 1
+fi
+for required in CENTRAL_API_URL ASSESSMENT_TOKEN ASSET_ID RUNTIME_ASSET_ID; do
+  if ! grep -q "^${required}=.\\+" <<<"$runtime_env_dump"; then
+    echo "[erro] Runtime incompleto: ${required} não está definido no client-customer-agent." >&2
+    echo "[erro] Verifique compose/.env e execute novamente o install self-service." >&2
+    exit 1
+  fi
+done
 
 echo "[install] A validar runtime health local antes da ativação..."
 if ! docker ps --format '{{.Names}}' | grep -q '^client-customer-agent$'; then

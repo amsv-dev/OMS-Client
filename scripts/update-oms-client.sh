@@ -35,6 +35,17 @@ set +u
 source "$ENV_FILE" 2>/dev/null || true
 set -u
 
+# Hard guard: update não deve seguir com self-service incompleto.
+for required in CENTRAL_API_URL ASSESSMENT_TOKEN ASSET_ID RUNTIME_ASSET_ID; do
+  value="${!required:-}"
+  if [[ -z "$value" ]]; then
+    echo "[update][erro] ${required} vazio em $ENV_FILE." >&2
+    echo "[update][erro] Corrija com o fluxo padrão:" >&2
+    echo "  bash scripts/install-oms-client.sh <TOKEN> <API_URL> [--site-code <code>]" >&2
+    exit 1
+  fi
+done
+
 SOLACE_HOST="${SOLACE__HOST:-$SOLACE_HOST}"
 if [[ -z "$SOLACE_HOST" ]]; then
   echo "[update] SOLACE__HOST não definido. Skip correção LOKI_URL." >&2
