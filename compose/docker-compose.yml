@@ -96,6 +96,8 @@ services:
       - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver}
       - CENTRAL_API_URL=${CENTRAL_API_URL:-}
       - ASSESSMENT_TOKEN=${ASSESSMENT_TOKEN:-}
+      - ASSESSMENT_TOKEN_FILE=${ASSESSMENT_TOKEN_FILE:-/app/secrets/assessment-token.txt}
+      - ASSESSMENT_TOKEN_FALLBACKS=${ASSESSMENT_TOKEN_FALLBACKS:-}
       - LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=${LOGICAL_ASSET_SYNC_INTERVAL_SECONDS:-60}
       - LOGICAL_COLLECTOR_CONF_DIR=/app/telegraf-conf.d
       - LOGICAL_SECRET_STORE_PATH=/app/secrets/logical-secret-store.json
