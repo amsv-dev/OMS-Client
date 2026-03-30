@@ -449,6 +449,10 @@ fi
 
 # .env
 mkdir -p "$(dirname "$COMPOSE_DIR/.env")"
+mkdir -p "$COMPOSE_DIR/secrets"
+TOKEN_FILE_PATH="$COMPOSE_DIR/secrets/assessment-token.txt"
+printf '%s' "$TOKEN" > "$TOKEN_FILE_PATH"
+chmod 600 "$TOKEN_FILE_PATH" 2>/dev/null || true
 cat > "$COMPOSE_DIR/.env" <<EOF
 TENANT_ID=$TENANT_ID
 ASSET_ID=$ASSET_ID
@@ -461,6 +465,8 @@ DB_REMOTE_COLLECTORS_ENABLED=false
 METRICS_ALLOWED_MEASUREMENTS=cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver
 CENTRAL_API_URL=$API_URL
 ASSESSMENT_TOKEN=$TOKEN
+ASSESSMENT_TOKEN_FILE=/app/secrets/assessment-token.txt
+ASSESSMENT_TOKEN_FALLBACKS=
 LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=60
 LOCAL_RUNTIME_API_PORT=5808
 LOCAL_RUNTIME_API_URL=/runtime-local

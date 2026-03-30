@@ -46,6 +46,16 @@ for required in CENTRAL_API_URL ASSESSMENT_TOKEN ASSET_ID RUNTIME_ASSET_ID; do
   fi
 done
 
+TOKEN_FILE_PATH="${COMPOSE_DIR}/secrets/assessment-token.txt"
+mkdir -p "${COMPOSE_DIR}/secrets"
+if [[ ! -f "$TOKEN_FILE_PATH" || ! -s "$TOKEN_FILE_PATH" ]]; then
+  printf '%s' "${ASSESSMENT_TOKEN}" > "$TOKEN_FILE_PATH"
+  chmod 600 "$TOKEN_FILE_PATH" 2>/dev/null || true
+fi
+if ! grep -q '^ASSESSMENT_TOKEN_FILE=' "$ENV_FILE"; then
+  echo "ASSESSMENT_TOKEN_FILE=/app/secrets/assessment-token.txt" >> "$ENV_FILE"
+fi
+
 SOLACE_HOST="${SOLACE__HOST:-$SOLACE_HOST}"
 if [[ -z "$SOLACE_HOST" ]]; then
   echo "[update] SOLACE__HOST não definido. Skip correção LOKI_URL." >&2
