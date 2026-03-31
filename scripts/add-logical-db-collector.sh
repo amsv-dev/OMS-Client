@@ -104,7 +104,6 @@ case "$SERVICE_TYPE" in
 [[inputs.postgresql]]
   address = "host=${DB_HOST} port=${DB_PORT} user=\${${USER_VAR}} password=\${${PASS_VAR}} dbname=${DB_NAME} sslmode=\${${SSL_VAR}}"
   outputaddress = "host=${DB_HOST}:${DB_PORT}"
-  database_type = "PostgreSQL"
 
   [inputs.postgresql.tags]
 ${COMMON_TAGS}
