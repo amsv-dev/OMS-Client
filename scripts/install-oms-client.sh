@@ -39,6 +39,7 @@ Exemplo:
   bash install-oms-client.sh <TOKEN> http://<central>:5000 --site-code site1
 
 A Central devolve: bundle (tenantId, assetId), Solace. O client só precisa do token.
+O install força pull das imagens do runtime antes de arrancar o compose.
 EOF
 }
 
@@ -490,8 +491,11 @@ for required in TENANT_ID ASSET_ID CENTRAL_API_URL ASSESSMENT_TOKEN; do
   fi
 done
 
-echo "[install] A arrancar stack..."
+echo "[install] A atualizar imagens do runtime (pull)..."
 cd "$(dirname "$COMPOSE_DIR")"
+docker compose -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$COMPOSE_DIR/.env" pull
+
+echo "[install] A arrancar stack..."
 docker compose -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$COMPOSE_DIR/.env" up -d --remove-orphans
 
 # Verificação runtime: customer-agent deve receber token e URL central já no container
