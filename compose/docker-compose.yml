@@ -43,13 +43,78 @@ services:
       - SERVICE_TYPE=${SERVICE_TYPE:-host}
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
+      - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-centralized-runtime}
       - DB_REMOTE_COLLECTORS_ENABLED=${DB_REMOTE_COLLECTORS_ENABLED:-false}
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-      - ./telegraf/conf.d:/etc/telegraf/telegraf.d:ro
+      - ./telegraf/dynamic/runtime:/etc/telegraf/telegraf.d:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc:/host/etc:ro
+    command:
+      - telegraf
+      - --config
+      - /etc/telegraf/telegraf.conf
+      - --config-directory
+      - /etc/telegraf/telegraf.d
+      - --watch-config
+      - poll
+    depends_on:
+      influxdb-local:
+        condition: service_healthy
+    networks:
+      - client-network
+
+  telegraf-logical-0:
+    image: telegraf:alpine
+    container_name: client-telegraf-logical-0
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - TENANT_ID=${TENANT_ID:-unknown}
+      - ASSET_ID=${ASSET_ID:-unknown}
+      - RUNTIME_ASSET_ID=${RUNTIME_ASSET_ID:-${ASSET_ID:-unknown}}
+      - COLLECTOR_TYPE=${COLLECTOR_TYPE:-telegraf}
+      - ORIGIN_SCOPE=remote
+      - SERVICE_TYPE=logical
+      - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
+      - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
+    volumes:
+      - ./telegraf/telegraf-remote.conf:/etc/telegraf/telegraf.conf:ro
+      - ./telegraf/dynamic/remote/shard-0:/etc/telegraf/telegraf.d:ro
+    command:
+      - telegraf
+      - --config
+      - /etc/telegraf/telegraf.conf
+      - --config-directory
+      - /etc/telegraf/telegraf.d
+      - --watch-config
+      - poll
+    depends_on:
+      influxdb-local:
+        condition: service_healthy
+    networks:
+      - client-network
+
+  telegraf-logical-1:
+    image: telegraf:alpine
+    container_name: client-telegraf-logical-1
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - TENANT_ID=${TENANT_ID:-unknown}
+      - ASSET_ID=${ASSET_ID:-unknown}
+      - RUNTIME_ASSET_ID=${RUNTIME_ASSET_ID:-${ASSET_ID:-unknown}}
+      - COLLECTOR_TYPE=${COLLECTOR_TYPE:-telegraf}
+      - ORIGIN_SCOPE=remote
+      - SERVICE_TYPE=logical
+      - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
+      - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
+    volumes:
+      - ./telegraf/telegraf-remote.conf:/etc/telegraf/telegraf.conf:ro
+      - ./telegraf/dynamic/remote/shard-1:/etc/telegraf/telegraf.d:ro
     command:
       - telegraf
       - --config
@@ -83,6 +148,7 @@ services:
       - SERVICE_TYPE=${SERVICE_TYPE:-host}
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
+      - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-centralized-runtime}
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:${LOCAL_RUNTIME_API_PORT:-5808}
       
@@ -99,7 +165,11 @@ services:
       - ASSESSMENT_TOKEN_FILE=${ASSESSMENT_TOKEN_FILE:-/app/secrets/assessment-token.txt}
       - ASSESSMENT_TOKEN_FALLBACKS=${ASSESSMENT_TOKEN_FALLBACKS:-}
       - LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=${LOGICAL_ASSET_SYNC_INTERVAL_SECONDS:-60}
-      - LOGICAL_COLLECTOR_CONF_DIR=/app/telegraf-conf.d
+      - LOGICAL_ASSETS_SOFT_LIMIT=${LOGICAL_ASSETS_SOFT_LIMIT:-25}
+      - COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}
+      - COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED:-false}
+      - LOGICAL_REMOTE_COLLECTOR_SHARDS=${LOGICAL_REMOTE_COLLECTOR_SHARDS:-2}
+      - LOGICAL_COLLECTOR_CONF_DIR=${LOGICAL_COLLECTOR_CONF_DIR:-/app/telegraf-dynamic}
       - LOGICAL_SECRET_STORE_PATH=/app/secrets/logical-secret-store.json
       
       # InfluxDB Local - Leitura de métricas
@@ -112,7 +182,7 @@ services:
         condition: service_healthy
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
-      - ./telegraf/conf.d:/app/telegraf-conf.d
+      - ./telegraf/dynamic:/app/telegraf-dynamic
       - ./secrets:/app/secrets
     networks:
       - client-network
