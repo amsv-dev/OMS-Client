@@ -65,69 +65,7 @@ services:
     networks:
       - client-network
 
-  telegraf-logical-0:
-    image: telegraf:alpine
-    container_name: client-telegraf-logical-0
-    restart: always
-    env_file:
-      - .env
-    environment:
-      - TENANT_ID=${TENANT_ID:-unknown}
-      - ASSET_ID=${ASSET_ID:-unknown}
-      - RUNTIME_ASSET_ID=${RUNTIME_ASSET_ID:-${ASSET_ID:-unknown}}
-      - COLLECTOR_TYPE=${COLLECTOR_TYPE:-telegraf}
-      - ORIGIN_SCOPE=remote
-      - SERVICE_TYPE=logical
-      - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
-      - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
-    volumes:
-      - ./telegraf/telegraf-remote.conf:/etc/telegraf/telegraf.conf:ro
-      - ./telegraf/dynamic/remote/shard-0:/etc/telegraf/telegraf.d:ro
-    command:
-      - telegraf
-      - --config
-      - /etc/telegraf/telegraf.conf
-      - --config-directory
-      - /etc/telegraf/telegraf.d
-      - --watch-config
-      - poll
-    depends_on:
-      influxdb-local:
-        condition: service_healthy
-    networks:
-      - client-network
-
-  telegraf-logical-1:
-    image: telegraf:alpine
-    container_name: client-telegraf-logical-1
-    restart: always
-    env_file:
-      - .env
-    environment:
-      - TENANT_ID=${TENANT_ID:-unknown}
-      - ASSET_ID=${ASSET_ID:-unknown}
-      - RUNTIME_ASSET_ID=${RUNTIME_ASSET_ID:-${ASSET_ID:-unknown}}
-      - COLLECTOR_TYPE=${COLLECTOR_TYPE:-telegraf}
-      - ORIGIN_SCOPE=remote
-      - SERVICE_TYPE=logical
-      - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
-      - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
-    volumes:
-      - ./telegraf/telegraf-remote.conf:/etc/telegraf/telegraf.conf:ro
-      - ./telegraf/dynamic/remote/shard-1:/etc/telegraf/telegraf.d:ro
-    command:
-      - telegraf
-      - --config
-      - /etc/telegraf/telegraf.conf
-      - --config-directory
-      - /etc/telegraf/telegraf.d
-      - --watch-config
-      - poll
-    depends_on:
-      influxdb-local:
-        condition: service_healthy
-    networks:
-      - client-network
+  # Telegraf por host remoto (modo per-host-collectors): gerado em docker-compose.host-collectors.generated.yml pelo customer-agent
 
   # Customer Agent - Replica métricas, processa alertas, executa comandos
   # CLIENT_IMAGE_REGISTRY: ghcr.io público (pull sem login) ou override para testes
@@ -168,8 +106,8 @@ services:
       - LOGICAL_ASSETS_SOFT_LIMIT=${LOGICAL_ASSETS_SOFT_LIMIT:-25}
       - COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}
       - COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED:-false}
-      - LOGICAL_REMOTE_COLLECTOR_SHARDS=${LOGICAL_REMOTE_COLLECTOR_SHARDS:-2}
       - LOGICAL_COLLECTOR_CONF_DIR=${LOGICAL_COLLECTOR_CONF_DIR:-/app/telegraf-dynamic}
+      - OMS_COMPOSE_PROJECT_DIR=/app/oms-compose-workdir
       - LOGICAL_SECRET_STORE_PATH=/app/secrets/logical-secret-store.json
       
       # InfluxDB Local - Leitura de métricas
@@ -183,6 +121,8 @@ services:
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
+      - .:/app/oms-compose-workdir:rw
+      - /var/run/docker.sock:/var/run/docker.sock
       - ./secrets:/app/secrets
     networks:
       - client-network
