@@ -21,7 +21,8 @@ Usage:
     [--site-code "<siteCode>"] \
     [--image-registry "ghcr.io/amsv-dev"] \
     [--image-tag "latest"] \
-    [--compose-dir "global/client/compose"]
+    [--compose-dir "global/client/compose"] \
+    [--observability-mode "centralized-runtime"]
 EOF
 }
 
@@ -40,6 +41,10 @@ SOLACE_PASSWORD=""
 CLIENT_IMAGE_REGISTRY="ghcr.io/amsv-dev"
 IMAGE_TAG="latest"
 COMPOSE_DIR="global/client/compose"
+OBSERVABILITY_MODE="${OBSERVABILITY_MODE:-centralized-runtime}"
+LOGICAL_ASSETS_SOFT_LIMIT="${LOGICAL_ASSETS_SOFT_LIMIT:-25}"
+COLLECTOR_PLACEMENT_STRATEGY="${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}"
+COLLECTOR_AUTO_SCALE_ENABLED="${COLLECTOR_AUTO_SCALE_ENABLED:-false}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -59,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --image-registry) CLIENT_IMAGE_REGISTRY="$2"; shift 2 ;;
     --image-tag) IMAGE_TAG="$2"; shift 2 ;;
     --compose-dir) COMPOSE_DIR="$2"; shift 2 ;;
+    --observability-mode) OBSERVABILITY_MODE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "[bootstrap][erro] Argumento desconhecido: $1" >&2; usage; exit 1 ;;
   esac
@@ -148,6 +154,11 @@ else
   fi
 fi
 
+DB_REMOTE_COLLECTORS_ENABLED=false
+if [[ "$OBSERVABILITY_MODE" == "per-host-collectors" ]] || [[ "$OBSERVABILITY_MODE" == "distributed-collectors" ]]; then
+  DB_REMOTE_COLLECTORS_ENABLED=true
+fi
+
 cat > "${COMPOSE_DIR}/.env" <<EOF
 TENANT_ID=${TENANT_ID}
 ASSET_ID=${ASSET_ID}
@@ -155,7 +166,12 @@ RUNTIME_ASSET_ID=${ASSET_ID}
 COLLECTOR_TYPE=telegraf
 ORIGIN_SCOPE=local
 SERVICE_TYPE=host
-DB_REMOTE_COLLECTORS_ENABLED=false
+OBSERVABILITY_MODE=${OBSERVABILITY_MODE}
+LOGICAL_ASSETS_SOFT_LIMIT=${LOGICAL_ASSETS_SOFT_LIMIT}
+COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY}
+COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED}
+OMS_COMPOSE_PROJECT_DIR=/app/oms-compose-workdir
+DB_REMOTE_COLLECTORS_ENABLED=${DB_REMOTE_COLLECTORS_ENABLED}
 METRICS_ALLOWED_MEASUREMENTS=cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver
 CENTRAL_API_URL=${API_URL}
 ASSESSMENT_TOKEN=${ASSESSMENT_TOKEN}
