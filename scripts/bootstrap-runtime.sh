@@ -171,6 +171,8 @@ LOGICAL_ASSETS_SOFT_LIMIT=${LOGICAL_ASSETS_SOFT_LIMIT}
 COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY}
 COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED}
 OMS_COMPOSE_PROJECT_DIR=/app/oms-compose-workdir
+OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
+OMS_COMPOSE_HOST_PROJECT_DIR=${COMPOSE_DIR}
 DB_REMOTE_COLLECTORS_ENABLED=${DB_REMOTE_COLLECTORS_ENABLED}
 METRICS_ALLOWED_MEASUREMENTS=cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver
 CENTRAL_API_URL=${API_URL}
@@ -190,7 +192,7 @@ OMS_IMAGE_TAG=${IMAGE_TAG}
 EOF
 
 echo "[bootstrap] Arrancar stack cliente..."
-docker compose -f "${COMPOSE_DIR}/docker-compose.yml" --env-file "${COMPOSE_DIR}/.env" up -d --remove-orphans
+docker compose -p "${OMS_COMPOSE_PROJECT_NAME:-compose}" -f "${COMPOSE_DIR}/docker-compose.yml" --env-file "${COMPOSE_DIR}/.env" up -d --remove-orphans
 
 if ! docker ps --format '{{.Names}}' | grep -q '^client-customer-agent$'; then
   echo "[bootstrap][erro] customer-agent não está a correr; runtime activation não será concluída." >&2

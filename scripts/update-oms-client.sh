@@ -55,6 +55,9 @@ fi
 if ! grep -q '^ASSESSMENT_TOKEN_FILE=' "$ENV_FILE"; then
   echo "ASSESSMENT_TOKEN_FILE=/app/secrets/assessment-token.txt" >> "$ENV_FILE"
 fi
+if ! grep -q '^OMS_COMPOSE_HOST_PROJECT_DIR=' "$ENV_FILE"; then
+  echo "OMS_COMPOSE_HOST_PROJECT_DIR=$COMPOSE_DIR" >> "$ENV_FILE"
+fi
 
 SOLACE_HOST="${SOLACE__HOST:-$SOLACE_HOST}"
 if [[ -z "$SOLACE_HOST" ]]; then
@@ -93,11 +96,13 @@ else
 fi
 
 # Refresh runtime completo
+OMS_COMPOSE_PROJECT_NAME="${OMS_COMPOSE_PROJECT_NAME:-compose}"
+
 echo "[update] Pull de imagens do runtime..."
 cd "$(dirname "$COMPOSE_DIR")"
-docker compose -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$ENV_FILE" pull
+docker compose -p "$OMS_COMPOSE_PROJECT_NAME" -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$ENV_FILE" pull
 
 echo "[update] Recriar stack do runtime..."
-docker compose -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$ENV_FILE" up -d --remove-orphans
+docker compose -p "$OMS_COMPOSE_PROJECT_NAME" -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$ENV_FILE" up -d --remove-orphans
 
 echo "[update] Concluido."
