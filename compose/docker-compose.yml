@@ -106,8 +106,15 @@ services:
       - LOGICAL_ASSETS_SOFT_LIMIT=${LOGICAL_ASSETS_SOFT_LIMIT:-25}
       - COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}
       - COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED:-false}
+      - REMOTE_TELEGRAF_PROVISIONING_ENABLED=${REMOTE_TELEGRAF_PROVISIONING_ENABLED:-false}
+      - REMOTE_TELEGRAF_OUTPUT_URL=${REMOTE_TELEGRAF_OUTPUT_URL:-}
+      - REMOTE_TELEGRAF_SSH_USER=${REMOTE_TELEGRAF_SSH_USER:-}
+      - REMOTE_TELEGRAF_SSH_KEY_PATH=${REMOTE_TELEGRAF_SSH_KEY_PATH:-}
+      - REMOTE_TELEGRAF_SSH_PORT=${REMOTE_TELEGRAF_SSH_PORT:-22}
+      - REMOTE_TELEGRAF_CONFIG_DIR=${REMOTE_TELEGRAF_CONFIG_DIR:-/opt/oms/telegraf}
       - LOGICAL_COLLECTOR_CONF_DIR=${LOGICAL_COLLECTOR_CONF_DIR:-/app/telegraf-dynamic}
-      - OMS_COMPOSE_PROJECT_DIR=/app/oms-compose-workdir
+      - OMS_COMPOSE_PROJECT_DIR=${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}
+      - OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
       - LOGICAL_SECRET_STORE_PATH=/app/secrets/logical-secret-store.json
       
       # InfluxDB Local - Leitura de métricas
@@ -122,6 +129,7 @@ services:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
       - .:/app/oms-compose-workdir:rw
+      - .:${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./secrets:/app/secrets
     networks:
