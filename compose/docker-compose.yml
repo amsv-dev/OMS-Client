@@ -175,6 +175,22 @@ services:
     networks:
       - client-network
 
+  # Assessment UI v2 - Client onboarding frontend (shadcn layout)
+  assessment-v2:
+    image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-assessment-v2:${OMS_IMAGE_TAG:-latest}
+    container_name: client-assessment-v2
+    restart: always
+    ports:
+      - "${CLIENT_ASSESSMENT_V2_HTTP_PORT:-3122}:80"
+    environment:
+      - TENANT_ID=${TENANT_ID:-unknown}
+      - ASSET_ID=${ASSET_ID:-unknown}
+      - SITE_CODE=${SITE_CODE:-}
+    depends_on:
+      - customer-agent
+    networks:
+      - client-network
+
   # NOTE: Remote execution via CommandReceiverService (Solace)
   # See documentacao/decisoes/ADR-001-remote-execution.md
 
