@@ -59,27 +59,20 @@ if ! grep -q '^OMS_COMPOSE_HOST_PROJECT_DIR=' "$ENV_FILE"; then
   echo "OMS_COMPOSE_HOST_PROJECT_DIR=$COMPOSE_DIR" >> "$ENV_FILE"
 fi
 
+# Opcional: corrigir LOKI_URL (Cloud: :3100 -> api-proxy :8443). Nunca abortar antes do pull das imagens.
 SOLACE_HOST="${SOLACE__HOST:-$SOLACE_HOST}"
 if [[ -z "$SOLACE_HOST" ]]; then
-  echo "[update] SOLACE__HOST nao definido. Skip correcao LOKI_URL." >&2
-  exit 0
-fi
-
-# Corrigir LOKI_URL: se aponta para SOLACE_HOST:3100, deve ser :8443 (api-proxy)
-CURRENT_LOKI="${LOKI_URL:-}"
-if [[ -z "$CURRENT_LOKI" ]]; then
-  echo "[update] LOKI_URL nao definido. Skip." >&2
-  exit 0
-fi
-
-# Extrair host e port da LOKI_URL atual
-LOKI_HOST="$(echo "$CURRENT_LOKI" | sed -E 's|https?://([^:/]+).*|\1|')"
-LOKI_PORT="$(echo "$CURRENT_LOKI" | sed -E 's|https?://[^:]+:([0-9]+).*|\1|')"
-
-if [[ "$LOKI_HOST" != "$SOLACE_HOST" ]]; then
-  echo "[update] LOKI_URL host ($LOKI_HOST) != SOLACE_HOST ($SOLACE_HOST). Nada a corrigir."
+  echo "[update] SOLACE__HOST nao definido. Skip correcao LOKI_URL."
+elif [[ -z "${LOKI_URL:-}" ]]; then
+  echo "[update] LOKI_URL nao definido. Skip correcao LOKI_URL."
 else
-  if [[ "$LOKI_PORT" == "8443" ]]; then
+  CURRENT_LOKI="${LOKI_URL}"
+  LOKI_HOST="$(echo "$CURRENT_LOKI" | sed -E 's|https?://([^:/]+).*|\1|')"
+  LOKI_PORT="$(echo "$CURRENT_LOKI" | sed -E 's|https?://[^:]+:([0-9]+).*|\1|')"
+
+  if [[ "$LOKI_HOST" != "$SOLACE_HOST" ]]; then
+    echo "[update] LOKI_URL host ($LOKI_HOST) != SOLACE_HOST ($SOLACE_HOST). Nada a corrigir."
+  elif [[ "$LOKI_PORT" == "8443" ]]; then
     echo "[update] LOKI_URL ja correto (porta 8443)."
   elif [[ "$LOKI_PORT" == "3100" ]]; then
     NEW_LOKI="http://${SOLACE_HOST}:8443/loki/api/v1/push"
@@ -90,8 +83,7 @@ else
       echo "LOKI_URL=$NEW_LOKI" >> "$ENV_FILE"
     fi
   else
-    echo "[update] LOKI_URL porta $LOKI_PORT inesperada. Se Cloud, use :8443." >&2
-    exit 1
+    echo "[update] LOKI_URL porta $LOKI_PORT inesperada. Revise manualmente (Cloud: :8443). Pull de imagens segue em frente." >&2
   fi
 fi
 
