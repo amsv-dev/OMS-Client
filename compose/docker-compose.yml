@@ -186,6 +186,7 @@ services:
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
       - SITE_CODE=${SITE_CODE:-}
+      - CENTRAL_API_URL=${CENTRAL_API_URL:-}
     depends_on:
       - customer-agent
     networks:
