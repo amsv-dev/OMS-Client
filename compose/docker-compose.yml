@@ -1,4 +1,37 @@
 services:
+  # HashiCorp Vault OSS - Cofre de credenciais do cliente (PR3)
+  # Storage backend: file (volume persistente)
+  # Auto-unseal: SO-protected key + recovery Shamir offline (ver entrypoint.sh)
+  # Network: client-network apenas (NUNCA exposto a oms-shared-network)
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: oms-vault
+    restart: always
+    cap_add:
+      - IPC_LOCK   # necessario para mlock (proteger chaves master de swap)
+    volumes:
+      - vault-file:/vault/file
+      - vault-logs:/vault/logs
+      - ./vault/config:/vault/config:ro
+      - ./vault/scripts:/vault/scripts:ro
+      - ./secrets/vault:/vault/secrets   # recovery keys + autounseal.key (host-mounted)
+    environment:
+      - VAULT_ADDR=http://127.0.0.1:8200
+      - VAULT_API_ADDR=http://oms-vault:8200
+    entrypoint:
+      - /bin/sh
+      - /vault/scripts/entrypoint.sh
+    networks:
+      - client-network
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "vault status -format=json 2>/dev/null | grep -q '\"sealed\": false' && [ -f /vault/secrets/.unsealed ]"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
   # InfluxDB Local - Armazena métricas localmente para resiliência
   influxdb-local:
     image: influxdb:2.7-alpine
@@ -24,8 +57,9 @@ services:
       retries: 5
 
   # Telegraf - Coleta métricas do sistema e envia para InfluxDB local
+  # Versao fixada 1.32-alpine para garantir suporte ao plugin secretstores.vault (>= 1.30).
   telegraf:
-    image: telegraf:alpine
+    image: telegraf:1.32-alpine
     container_name: client-telegraf
     restart: always
     env_file:
@@ -48,6 +82,8 @@ services:
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - ./telegraf/dynamic/runtime:/etc/telegraf/telegraf.d:ro
+      # Token Vault read-only para o Telegraf, escrito pelo VaultBootstrap (PR4)
+      - ./secrets/telegraf-vault-token:/etc/telegraf/secrets/vault-token:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc:/host/etc:ro
@@ -61,6 +97,8 @@ services:
       - poll
     depends_on:
       influxdb-local:
+        condition: service_healthy
+      vault:
         condition: service_healthy
     networks:
       - client-network
@@ -116,7 +154,13 @@ services:
       - OMS_COMPOSE_PROJECT_DIR=${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}
       - OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
       - LOGICAL_SECRET_STORE_PATH=/app/secrets/logical-secret-store.json
-      
+      # Vault (PR4)
+      - OMS_CREDSTORE_MODE=${OMS_CREDSTORE_MODE:-File}
+      - VAULT_ADDR=${VAULT_ADDR:-http://oms-vault:8200}
+      - VAULT_APPROLE_DIR=/app/secrets/vault-approle
+      - VAULT_TELEGRAF_TOKEN_PATH=/app/secrets/telegraf-vault-token
+      - VAULT_RECOVERY_FILE=/vault/secrets/recovery-keys-FIRST-BOOT-ONLY.json
+
       # InfluxDB Local - Leitura de métricas
       - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
       - INFLUXDB_LOCAL_TOKEN=client-local-token
@@ -125,6 +169,8 @@ services:
     depends_on:
       influxdb-local:
         condition: service_healthy
+      vault:
+        condition: service_healthy
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
@@ -132,6 +178,10 @@ services:
       - .:${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./secrets:/app/secrets
+      - ./secrets/vault:/vault/secrets:ro
+      # Audit log + first-boot instructions partilhados com o oms-vault (read-only).
+      # Usado pelo VaultManagementService para preview de audit na UI "Cofre" (B2).
+      - vault-logs:/vault/logs:ro
     networks:
       - client-network
       - oms-shared-network
@@ -217,6 +267,10 @@ volumes:
   influxdb-local-data:
     external: true
     name: compose_influxdb-local-data
+  vault-file:
+    driver: local
+  vault-logs:
+    driver: local
 
 networks:
   client-network:
