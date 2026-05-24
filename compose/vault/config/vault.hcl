@@ -5,11 +5,9 @@
 
 ui = false
 
-# disable_mlock = false faz o Vault chamar mlock() para impedir swap de
-# chaves master. Requer IPC_LOCK no docker-compose (cap_add). Em ambientes
-# Docker Desktop / WSL pode falhar; nesse caso, o operador ajusta para true
-# como excepcao documentada e aceita o risco residual.
-disable_mlock = false
+# disable_mlock = true em Docker: mlock() falha em muitos hosts mesmo com IPC_LOCK.
+# Com true o Vault arranca de forma fiavel; segredos continuam encriptados at-rest no volume.
+disable_mlock = true
 
 api_addr     = "http://oms-vault:8200"
 cluster_addr = "http://oms-vault:8201"

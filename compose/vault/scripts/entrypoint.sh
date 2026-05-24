@@ -59,25 +59,38 @@ ensure_autounseal_key() {
   chmod 0400 "$AUTOUNSEAL_KEYBLOB" || true
 }
 
-# AES-256-GCM via openssl. Saida: nonce(12) || tag(16) || ciphertext, base64 numa linha.
+# Extrai unseal key N (0-based) do JSON de `vault operator init -format=json`.
+extract_unseal_key() {
+  idx="$1"
+  keys_csv="$(printf '%s' "$init_json" | tr -d '\n\r' | sed -n 's/.*"unseal_keys_b64":\[\([^]]*\)\].*/\1/p')"
+  if [ -z "$keys_csv" ]; then
+    return 1
+  fi
+  # keys_csv = "k0","k1",...
+  printf '%s' "$keys_csv" | cut -d',' -f"$((idx + 1))" | tr -d '" '
+}
+
+# AES-256-CBC (portavel em todas as builds OpenSSL da imagem hashicorp/vault).
+# Formato por linha: iv_hex:ciphertext_base64
 encrypt_share() {
   share="$1"
   key_hex="$(od -An -vtx1 -N 32 "$AUTOUNSEAL_KEYBLOB" | tr -d ' \n')"
-  nonce="$(openssl rand -hex 12)"
-  # openssl aes-256-gcm produz ciphertext seguido do tag, separados via --tag-out;
-  # como nem todas as builds suportam --tag-out, fazemos via openssl enc com hex aad.
-  printf '%s' "$share" | \
-    openssl enc -aes-256-gcm -K "$key_hex" -iv "$nonce" -nosalt 2>/dev/null | \
-    base64 -w0 | awk -v n="$nonce" '{print n":"$0}'
+  iv="$(openssl rand -hex 16)"
+  ct="$(printf '%s' "$share" | openssl enc -aes-256-cbc -K "$key_hex" -iv "$iv" -nosalt 2>/dev/null | base64 | tr -d '\n\r' || true)"
+  if [ -z "$ct" ]; then
+    log "ERRO: openssl enc falhou ao cifrar share (verifique OpenSSL na imagem)."
+    return 1
+  fi
+  printf '%s:%s\n' "$iv" "$ct"
 }
 
 decrypt_share() {
   encoded="$1"
-  nonce="${encoded%%:*}"
+  iv="${encoded%%:*}"
   ciphertext_b64="${encoded#*:}"
   key_hex="$(od -An -vtx1 -N 32 "$AUTOUNSEAL_KEYBLOB" | tr -d ' \n')"
-  printf '%s' "$ciphertext_b64" | base64 -d | \
-    openssl enc -aes-256-gcm -d -K "$key_hex" -iv "$nonce" -nosalt 2>/dev/null
+  printf '%s' "$ciphertext_b64" | base64 -d 2>/dev/null | \
+    openssl enc -aes-256-cbc -d -K "$key_hex" -iv "$iv" -nosalt 2>/dev/null
 }
 
 initialize_vault() {
@@ -90,13 +103,16 @@ initialize_vault() {
   ensure_autounseal_key
   : > "$AUTOUNSEAL_FILE"
   for idx in 0 1 2; do
-    share="$(printf '%s' "$init_json" | sed -n 's/.*"unseal_keys_b64":\[\("[^"]*"\(,"[^"]*"\)*\)\].*/\1/p' \
-      | awk -F'","' -v i="$idx" '{gsub(/"/,""); print $((i+1))}')"
+    share="$(extract_unseal_key "$idx")" || share=""
     if [ -z "$share" ]; then
-      log "ERRO: nao foi possivel extrair share $idx"
+      log "ERRO: nao foi possivel extrair share $idx do init JSON."
+      log "init_json (primeiros 200 chars): $(printf '%.200s' "$init_json")"
       exit 1
     fi
-    encrypt_share "$share" >> "$AUTOUNSEAL_FILE"
+    if ! encrypt_share "$share" >> "$AUTOUNSEAL_FILE"; then
+      log "ERRO: falha ao cifrar share $idx para autounseal.key"
+      exit 1
+    fi
   done
   chmod 0400 "$AUTOUNSEAL_FILE" || true
 
