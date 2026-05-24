@@ -30,7 +30,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 30s
+      start_period: 90s
 
   # InfluxDB Local - Armazena métricas localmente para resiliência
   influxdb-local:
@@ -98,8 +98,10 @@ services:
     depends_on:
       influxdb-local:
         condition: service_healthy
+      # service_started: agent arranca em modo File mesmo se Vault ainda a inicializar.
+      # VaultBootstrap faz retry; nao bloquear assessment/telegraf por health do vault.
       vault:
-        condition: service_healthy
+        condition: service_started
     networks:
       - client-network
 
@@ -170,7 +172,7 @@ services:
       influxdb-local:
         condition: service_healthy
       vault:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
