@@ -24,13 +24,16 @@ services:
     networks:
       - client-network
     healthcheck:
+      # Saudavel quando o socket esta a responder, independentemente do estado sealed.
+      # O unseal e responsabilidade do customer-agent (VaultUnsealService); este
+      # healthcheck mede apenas se o processo do Vault esta vivo.
       test:
         - CMD-SHELL
-        - "vault status -format=json 2>/dev/null | grep -q '\"sealed\": false' && [ -f /vault/secrets/.unsealed ]"
+        - "wget -qO- http://127.0.0.1:8200/v1/sys/health?sealedcode=200 >/dev/null 2>&1 || vault status >/dev/null 2>&1 || [ $? -eq 2 ]"
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 90s
+      retries: 12
+      start_period: 30s
 
   # InfluxDB Local - Armazena métricas localmente para resiliência
   influxdb-local:
@@ -98,10 +101,11 @@ services:
     depends_on:
       influxdb-local:
         condition: service_healthy
-      # service_started: agent arranca em modo File mesmo se Vault ainda a inicializar.
-      # VaultBootstrap faz retry; nao bloquear assessment/telegraf por health do vault.
+      # Vault precisa estar a responder antes do Telegraf arrancar para que o
+      # secret-store plugin consiga ligar. O auto-unseal e feito pelo
+      # customer-agent (VaultUnsealService), nao bloqueamos Telegraf por isso.
       vault:
-        condition: service_started
+        condition: service_healthy
     networks:
       - client-network
 
@@ -155,13 +159,12 @@ services:
       - LOGICAL_COLLECTOR_CONF_DIR=${LOGICAL_COLLECTOR_CONF_DIR:-/app/telegraf-dynamic}
       - OMS_COMPOSE_PROJECT_DIR=${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}
       - OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
-      - LOGICAL_SECRET_STORE_PATH=/app/secrets/logical-secret-store.json
-      # Vault (PR4)
-      - OMS_CREDSTORE_MODE=${OMS_CREDSTORE_MODE:-File}
+      # Vault (arquitectura definitiva — Vault-only)
       - VAULT_ADDR=${VAULT_ADDR:-http://oms-vault:8200}
       - VAULT_APPROLE_DIR=/app/secrets/vault-approle
       - VAULT_TELEGRAF_TOKEN_PATH=/app/secrets/telegraf-vault-token
       - VAULT_RECOVERY_FILE=/vault/secrets/recovery-keys-FIRST-BOOT-ONLY.json
+      - VAULT_AUTOUNSEAL_FILE=/vault/secrets/autounseal.bin
 
       # InfluxDB Local - Leitura de métricas
       - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
@@ -172,7 +175,7 @@ services:
       influxdb-local:
         condition: service_healthy
       vault:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
