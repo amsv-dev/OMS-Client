@@ -60,37 +60,60 @@ ensure_autounseal_key() {
 }
 
 # Extrai unseal key N (0-based) do JSON de `vault operator init -format=json`.
+# Vault 1.17 emite JSON pretty-printed com espacos: "unseal_keys_b64": [ "k0", ... ]
 extract_unseal_key() {
   idx="$1"
-  keys_csv="$(printf '%s' "$init_json" | tr -d '\n\r' | sed -n 's/.*"unseal_keys_b64":\[\([^]]*\)\].*/\1/p')"
-  if [ -z "$keys_csv" ]; then
-    return 1
+  # 1) JSON compacto numa linha (sed tolera espacos antes de [ e ])
+  keys_csv="$(printf '%s' "$init_json" | tr -d '\n\r' | sed -n 's/.*"unseal_keys_b64"[[:space:]]*:[[:space:]]*\[[[:space:]]*\([^]]*\)[[:space:]]*\].*/\1/p')"
+  if [ -n "$keys_csv" ]; then
+    key="$(printf '%s' "$keys_csv" | cut -d',' -f"$((idx + 1))" | tr -d '" ')"
+    if [ -n "$key" ]; then
+      printf '%s' "$key"
+      return 0
+    fi
   fi
-  # keys_csv = "k0","k1",...
-  printf '%s' "$keys_csv" | cut -d',' -f"$((idx + 1))" | tr -d '" '
+  # 2) Fallback: percorrer linhas do JSON pretty-printed
+  n=0
+  in_keys=0
+  while IFS= read -r line; do
+    case "$line" in
+      *\"unseal_keys_b64\"*) in_keys=1; continue ;;
+    esac
+    if [ "$in_keys" -eq 1 ]; then
+      case "$line" in
+        *']'*) break ;;
+      esac
+      key="$(printf '%s' "$line" | sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p')"
+      if [ -n "$key" ]; then
+        if [ "$n" -eq "$idx" ]; then
+          printf '%s' "$key"
+          return 0
+        fi
+        n=$((n + 1))
+      fi
+    fi
+  done <<EOF
+$init_json
+EOF
+  return 1
 }
 
-# AES-256-CBC (portavel em todas as builds OpenSSL da imagem hashicorp/vault).
-# Formato por linha: iv_hex:ciphertext_base64
+# A imagem hashicorp/vault NAO inclui openssl. As shares ficam em base64 por linha
+# em autounseal.key (chmod 0400). A chave .autounseal-key reserva-se para evolucao
+# futura (sidecar com openssl ou Vault transit). Proteccao efectiva: permissoes SO + path host.
 encrypt_share() {
   share="$1"
-  key_hex="$(od -An -vtx1 -N 32 "$AUTOUNSEAL_KEYBLOB" | tr -d ' \n')"
-  iv="$(openssl rand -hex 16)"
-  ct="$(printf '%s' "$share" | openssl enc -aes-256-cbc -K "$key_hex" -iv "$iv" -nosalt 2>/dev/null | base64 | tr -d '\n\r' || true)"
-  if [ -z "$ct" ]; then
-    log "ERRO: openssl enc falhou ao cifrar share (verifique OpenSSL na imagem)."
+  encoded="$(printf '%s' "$share" | base64 | tr -d '\n\r')"
+  if [ -z "$encoded" ]; then
+    log "ERRO: base64 encode da share falhou."
     return 1
   fi
-  printf '%s:%s\n' "$iv" "$ct"
+  printf '%s\n' "$encoded"
 }
 
 decrypt_share() {
   encoded="$1"
-  iv="${encoded%%:*}"
-  ciphertext_b64="${encoded#*:}"
-  key_hex="$(od -An -vtx1 -N 32 "$AUTOUNSEAL_KEYBLOB" | tr -d ' \n')"
-  printf '%s' "$ciphertext_b64" | base64 -d 2>/dev/null | \
-    openssl enc -aes-256-cbc -d -K "$key_hex" -iv "$iv" -nosalt 2>/dev/null
+  printf '%s' "$encoded" | base64 -d 2>/dev/null
 }
 
 initialize_vault() {
