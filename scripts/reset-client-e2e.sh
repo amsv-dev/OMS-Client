@@ -22,7 +22,8 @@ docker run --rm \
   -v "$COMPOSE_DIR/secrets:/s" \
   -v "$COMPOSE_DIR/telegraf/dynamic:/td" \
   alpine:3.20 sh -c '
-    rm -f /s/vault/.autounseal-key /s/vault/autounseal.key /s/vault/.initialized /s/vault/.unsealed
+    rm -f /s/vault/.autounseal-key /s/vault/autounseal.key /s/vault/autounseal.bin
+    rm -f /s/vault/.initialized /s/vault/.unsealed
     rm -f /s/vault/recovery-keys-FIRST-BOOT-ONLY.json /s/vault/.bootstrap-done 2>/dev/null || true
     rm -f /s/logical-secret-store.json /s/logical-secret-store.json.bak
     rm -rf /s/vault-approle /s/telegraf-vault-token /s/keys
@@ -31,15 +32,9 @@ docker run --rm \
     find /td -name "*.conf" -delete 2>/dev/null || true
   '
 
-echo "[reset] Garantir OMS_CREDSTORE_MODE=File no .env..."
+echo "[reset] Remover OMS_CREDSTORE_MODE do .env (legacy, ja nao usado)..."
 if [ -f "$ENV_FILE" ]; then
-  if grep -q '^OMS_CREDSTORE_MODE=' "$ENV_FILE"; then
-    sed -i 's/^OMS_CREDSTORE_MODE=.*/OMS_CREDSTORE_MODE=File/' "$ENV_FILE"
-  else
-    echo 'OMS_CREDSTORE_MODE=File' >> "$ENV_FILE"
-  fi
-else
-  echo "AVISO: $ENV_FILE nao existe; copiar de .env.example"
+  sed -i '/^OMS_CREDSTORE_MODE=/d' "$ENV_FILE" || true
 fi
 
 echo "[reset] Subir stack..."

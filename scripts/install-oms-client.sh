@@ -640,6 +640,9 @@ if command -v jq >/dev/null 2>&1; then
 fi
 rm -f "$ACTIVATE_TMP"
 
+ASSESSMENT_V2_PORT="${CLIENT_ASSESSMENT_V2_HTTP_PORT:-3122}"
+CLIENT_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo "[install] Concluído."
-echo "[install] Assessment: http://$(hostname -I 2>/dev/null | awk '{print $1}'):3002"
+echo "[install] Assessment v2 (UI): http://${CLIENT_IP:-localhost}:${ASSESSMENT_V2_PORT}/"
+echo "[install] Cofre Vault (1x por instalacao): bash scripts/vault-bootstrap.sh"
 echo "[install] Tenant: $TENANT_ID | Asset: $ASSET_ID"
