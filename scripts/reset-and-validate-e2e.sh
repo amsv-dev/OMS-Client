@@ -57,6 +57,9 @@ read_env() {
 LOCAL_TOKEN="$(read_env LOCAL_TOKEN)"
 [ -n "${LOCAL_TOKEN}" ] || fail "LOCAL_TOKEN nao definido em $ENV_FILE"
 
+LOCAL_RUNTIME_API_PORT="$(read_env LOCAL_RUNTIME_API_PORT)"
+[ -n "${LOCAL_RUNTIME_API_PORT:-}" ] || LOCAL_RUNTIME_API_PORT="5808"
+
 TENANT_ID="$(read_env TENANT_ID)"
 [ -n "${TENANT_ID:-}" ] || TENANT_ID="demo-tenant"
 
@@ -64,10 +67,10 @@ RUNTIME_ASSET_ID="$(read_env RUNTIME_ASSET_ID)"
 [ -n "${RUNTIME_ASSET_ID:-}" ] || RUNTIME_ASSET_ID="$(read_env ASSET_ID)"
 [ -n "${RUNTIME_ASSET_ID:-}" ] || RUNTIME_ASSET_ID="runtime-demo-001"
 
-AGENT_URL="${AGENT_URL:-http://localhost:5000}"
+AGENT_URL="${AGENT_URL:-http://127.0.0.1:${LOCAL_RUNTIME_API_PORT:-5808}}"
 
 agent() {
-  curl -fsS -H "X-Local-Token: $LOCAL_TOKEN" -H "Content-Type: application/json" "$@"
+  curl -fsS -H "X-Customer-Token: $LOCAL_TOKEN" -H "Content-Type: application/json" "$@"
 }
 
 # ── 1. Reset ───────────────────────────────────────────────────────────────────
@@ -95,7 +98,7 @@ BOOT_RESP="$(agent -X POST "$AGENT_URL/local/vault/bootstrap" \
   --data '{"keyShares":5,"keyThreshold":3}' || true)"
 
 if [ -z "$BOOT_RESP" ]; then
-  fail "Bootstrap nao devolveu resposta. Ver: docker logs oms-customer-agent"
+  fail "Bootstrap nao devolveu resposta. Ver: docker logs client-customer-agent"
 fi
 
 echo "$BOOT_RESP" | jq -e '.success == true or .Success == true' >/dev/null \
@@ -174,8 +177,8 @@ fi
 
 # ── 8. Auto-unseal apos reboot ─────────────────────────────────────────────────
 
-step "8. Reboot do oms-vault + oms-customer-agent e medir auto-unseal"
-$DC restart oms-vault oms-customer-agent >/dev/null 2>&1
+step "8. Reboot do oms-vault + customer-agent e medir auto-unseal"
+$DC restart vault customer-agent >/dev/null 2>&1
 START=$(date +%s)
 for i in $(seq 1 30); do
   if docker exec oms-vault vault status 2>/dev/null | grep -q 'Sealed.*false'; then
