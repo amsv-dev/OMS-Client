@@ -19,7 +19,7 @@ O script:
   - docker compose up -d --remove-orphans --force-recreate
   - Espera Vault unsealed (auto-unseal pelo customer-agent)
 
-Nao faz reset do cofre nem apaga volumes. Para instalacao virgem: reset-client-e2e.sh
+Nao faz reset do cofre nem apaga volumes. Para runtime limpo: bash scripts/reset-client.sh --runtime
 
 Pre-requisito: imagens publicadas no registry (pipeline) e compose atualizado via git pull.
 EOF

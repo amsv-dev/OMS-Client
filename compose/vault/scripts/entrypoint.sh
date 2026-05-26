@@ -8,7 +8,7 @@
 # Tudo o resto e gerido pelo customer-agent:
 #   - Auto-unseal: VaultUnsealService chama POST /v1/sys/unseal com chaves
 #     descifradas com DPAPI/keyring + AES-GCM (Oms.CustomerAgent.Services.VaultAuth).
-#   - Bootstrap inicial (operator init + AppRole): vault-bootstrap.sh chama o
+#   - Bootstrap inicial (operator init + AppRole): vault-ops.sh bootstrap chama o
 #     endpoint /local/vault/bootstrap no agent (so funciona quando Vault nao
 #     esta inicializado, idempotente).
 #   - Audit logging: VaultBootstrap activa audit/file apos init.
