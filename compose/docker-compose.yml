@@ -183,7 +183,8 @@ services:
       - .:${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./secrets:/app/secrets
-      - ./secrets/vault:/vault/secrets:ro
+      # RW: bootstrap grava recovery-keys + autounseal.bin (VaultInitializationService).
+      - ./secrets/vault:/vault/secrets:rw
       # Audit log + first-boot instructions partilhados com o oms-vault (read-only).
       # Usado pelo VaultManagementService para preview de audit na UI "Cofre" (B2).
       - vault-logs:/vault/logs:ro
