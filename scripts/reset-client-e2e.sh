@@ -39,7 +39,7 @@ fi
 
 echo "[reset] Subir stack..."
 docker compose -f "$COMPOSE_DIR/docker-compose.yml" --env-file "$ENV_FILE" pull vault customer-agent telegraf oms-assessment-v2 2>/dev/null || true
-docker compose -f "$COMPOSE_DIR/docker-compose.yml" --env-file "$ENV_FILE" up -d
+docker compose -f "$COMPOSE_DIR/docker-compose.yml" --env-file "$ENV_FILE" up -d --force-recreate vault customer-agent
 
 echo "[reset] Aguardar Vault (max 120s)..."
 for i in $(seq 1 24); do
