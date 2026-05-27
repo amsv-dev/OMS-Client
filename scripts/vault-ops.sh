@@ -19,6 +19,7 @@ Uso:
 
 Comandos:
   bootstrap [--shares N] [--threshold M]   Inicializa Vault (1x por install) via customer-agent
+  provision-approle                        Gera role-id/secret-id (apos bootstrap; repara cofre sem credenciais)
   status                                   vault status + health via agent (se token disponivel)
   unseal [recovery.json]                   Unseal manual com 3 primeiras keys (emergencia)
   recovery-path                            Mostra caminho do ficheiro FIRST-BOOT
@@ -79,6 +80,28 @@ cmd_bootstrap() {
   cmd_recovery_path
   echo ""
   echo "Apos backup offline das recovery keys, apague o ficheiro FIRST-BOOT do disco."
+}
+
+cmd_provision_approle() {
+  command -v curl >/dev/null 2>&1 || { echo "[vault-ops][erro] curl em falta" >&2; exit 1; }
+  local token
+  token="$(read_token)" || exit 1
+  [[ -n "$token" ]] || { echo "[vault-ops][erro] token vazio" >&2; exit 1; }
+
+  echo "[vault-ops] POST $AGENT_URL/local/vault/provision-approle ..."
+  local http_code
+  http_code=$(curl -sS -o /tmp/vault-ops-provision.json -w '%{http_code}' \
+    -X POST \
+    -H "X-Customer-Token: $token" \
+    "$AGENT_URL/local/vault/provision-approle")
+
+  cat /tmp/vault-ops-provision.json
+  echo ""
+  rm -f /tmp/vault-ops-provision.json
+  if [[ "$http_code" != "200" ]]; then
+    echo "[vault-ops][erro] HTTP $http_code (Vault unsealed? recovery file com root_token?)" >&2
+    exit 1
+  fi
 }
 
 cmd_status() {
@@ -146,6 +169,7 @@ shift
 
 case "$CMD" in
   bootstrap) cmd_bootstrap "$@" ;;
+  provision-approle) cmd_provision_approle "$@" ;;
   status) cmd_status "$@" ;;
   unseal) cmd_unseal "${1:-}" ;;
   recovery-path) cmd_recovery_path ;;
