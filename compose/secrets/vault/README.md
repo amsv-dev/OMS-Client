@@ -1,29 +1,19 @@
 # `secrets/vault/` — Volume host do Vault OMS
 
-Esta pasta é **gerada em runtime** pelo container `oms-vault` na primeira execução. NÃO commitar nenhum ficheiro além deste README.
+Esta pasta é **gerada em runtime** pelo container `oms-vault` e pelo `customer-agent`. NÃO commitar ficheiros sensíveis (`.gitignore` protege).
 
-## Ficheiros que vais ver depois do primeiro arranque
+## Ficheiros em runtime (ADR-011)
 
-| Ficheiro | Conteúdo | Acção do cliente |
+| Ficheiro | Conteúdo | Acção |
 |---|---|---|
-| `recovery-keys-FIRST-BOOT-ONLY.json` | 5 recovery keys Shamir + root token | **Copiar IMEDIATAMENTE para 2 cofres offline e depois apagar** |
-| `autounseal.key` | 3 das 5 shares cifradas com a chave SO local | Manter no disco; é usado pelo auto-unseal |
-| `.autounseal-key` | Chave AES-256 random de 32 bytes para cifrar/decifrar `autounseal.key` | Manter no disco; perdê-la força DR via recovery keys |
-| `.initialized` | Marker booleano | Não tocar |
-| `.unsealed` | Marker para healthcheck do docker | Não tocar |
+| `autounseal.bin` | 3 shares Shamir cifradas (auto-unseal) | **Manter** no disco |
+| `.recovery-backup-acknowledged` | Marker: operador confirmou backup | Criado após ack |
+| `recovery-keys-FIRST-BOOT-ONLY.json` | **Legacy** — não deve existir em instalações novas | Apagar após migração / `ack-recovery` |
 
-## Procedimento de backup (resumo)
+## Bootstrap (instalações novas)
 
-Detalhe completo em [documentacao/operacoes/vault-backup-checklist.md](../../../../documentacao/operacoes/vault-backup-checklist.md).
+1. UI Assessment → Cofre → **Activar cofre** → passo **Backup** (keys uma vez)
+2. Ou CLI: `bash scripts/vault-ops.sh bootstrap` → guardar JSON no stdout offline
+3. Confirmar: wizard «Concluir activação» ou `bash scripts/vault-ops.sh ack-recovery`
 
-1. Abrir `recovery-keys-FIRST-BOOT-ONLY.json`
-2. Copiar os 5 valores `unseal_keys_b64[]` e o `root_token` para:
-   - Pen USB encriptada (VeraCrypt/BitLocker)
-   - Gestor de passwords corporativo (KeePass/1Password)
-   - Opcionalmente impresso em papel num cofre físico
-3. **Apagar o ficheiro `recovery-keys-FIRST-BOOT-ONLY.json` deste directório**:
-   ```bash
-   rm client/compose/secrets/vault/recovery-keys-FIRST-BOOT-ONLY.json
-   ```
-
-O `.gitignore` da raiz já protege estes ficheiros contra commit acidental, mas a recomendação é remover do disco após backup.
+As **5 recovery keys** não são gravadas em plaintext no host. Ver [ADR-011](../../../documentacao/decisoes/ADR-011-vault-recovery-ceremony.md) e [vault-backup-checklist.md](../../../documentacao/operacoes/vault-backup-checklist.md).
