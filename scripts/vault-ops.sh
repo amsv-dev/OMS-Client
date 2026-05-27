@@ -18,11 +18,12 @@ Uso:
   bash scripts/vault-ops.sh <comando> [opcoes]
 
 Comandos:
-  bootstrap [--shares N] [--threshold M]   Inicializa Vault (1x por install) via customer-agent
-  provision-approle                        Gera role-id/secret-id (apos bootstrap; repara cofre sem credenciais)
+  bootstrap [--shares N] [--threshold M]   Inicializa Vault (1x); imprime recovery keys no stdout (ADR-011)
+  ack-recovery                             Confirma backup offline; apaga ficheiro legacy se existir
+  provision-approle                        Verifica/repara AppRole (apos bootstrap)
   status                                   vault status + health via agent (se token disponivel)
-  unseal [recovery.json]                   Unseal manual com 3 primeiras keys (emergencia)
-  recovery-path                            Mostra caminho do ficheiro FIRST-BOOT
+  unseal [recovery.json]                   Unseal manual com 3 primeiras keys (backup offline)
+  recovery-path                            Estado legacy FIRST-BOOT / autounseal.bin
 
 Variaveis:
   COMPOSE_DIR, CUSTOMER_AGENT_URL, ASSESSMENT_TOKEN_FILE, VAULT_CONTAINER
@@ -77,9 +78,31 @@ cmd_bootstrap() {
   cat /tmp/vault-ops-bootstrap.json
   rm -f /tmp/vault-ops-bootstrap.json
   echo ""
-  cmd_recovery_path
+  echo "[vault-ops] ACCAO: redireccione o JSON acima para cofre offline (2 locais)."
+  echo "[vault-ops] Depois: bash scripts/vault-ops.sh ack-recovery (ou wizard Assessment → Concluir)."
+  echo "[vault-ops] As keys NAO ficam gravadas em plaintext no host (ADR-011)."
+}
+
+cmd_ack_recovery() {
+  command -v curl >/dev/null 2>&1 || { echo "[vault-ops][erro] curl em falta" >&2; exit 1; }
+  local token
+  token="$(read_token)" || exit 1
+  [[ -n "$token" ]] || { echo "[vault-ops][erro] token vazio" >&2; exit 1; }
+
+  echo "[vault-ops] POST $AGENT_URL/local/vault/ack-recovery-backup ..."
+  local http_code
+  http_code=$(curl -sS -o /tmp/vault-ops-ack.json -w '%{http_code}' \
+    -X POST \
+    -H "X-Customer-Token: $token" \
+    "$AGENT_URL/local/vault/ack-recovery-backup")
+
+  cat /tmp/vault-ops-ack.json
   echo ""
-  echo "Apos backup offline das recovery keys, apague o ficheiro FIRST-BOOT do disco."
+  rm -f /tmp/vault-ops-ack.json
+  if [[ "$http_code" != "200" ]]; then
+    echo "[vault-ops][erro] HTTP $http_code" >&2
+    exit 1
+  fi
 }
 
 cmd_provision_approle() {
@@ -99,7 +122,7 @@ cmd_provision_approle() {
   echo ""
   rm -f /tmp/vault-ops-provision.json
   if [[ "$http_code" != "200" ]]; then
-    echo "[vault-ops][erro] HTTP $http_code (Vault unsealed? recovery file com root_token?)" >&2
+    echo "[vault-ops][erro] HTTP $http_code (Vault unsealed? bootstrap completo?)" >&2
     exit 1
   fi
 }
@@ -147,12 +170,12 @@ cmd_unseal() {
 
 cmd_recovery_path() {
   if [[ -f "$RECOVERY_FILE" ]]; then
-    echo "[vault-ops] Ficheiro FIRST-BOOT (contem root_token + recovery keys):"
+    echo "[vault-ops] AVISO: ficheiro legacy FIRST-BOOT ainda no disco:"
     echo "  $RECOVERY_FILE"
-    echo "  ACCAO: backup offline e depois rm $RECOVERY_FILE"
+    echo "  ACCAO: backup offline (se ainda nao fez) e bash scripts/vault-ops.sh ack-recovery"
   else
-    echo "[vault-ops] Ficheiro FIRST-BOOT nao existe (ja apagado ou bootstrap por fazer)."
-    echo "  Caminho esperado: $RECOVERY_FILE"
+    echo "[vault-ops] Sem ficheiro legacy FIRST-BOOT (esperado apos ADR-011 / ack)."
+    echo "  Instalacoes novas: keys so na resposta de bootstrap (UI ou CLI)."
   fi
   if [[ -f "${COMPOSE_DIR}/secrets/vault/autounseal.bin" ]]; then
     echo "[vault-ops] autounseal.bin presente (auto-unseal no arranque do agent)."
@@ -169,6 +192,7 @@ shift
 
 case "$CMD" in
   bootstrap) cmd_bootstrap "$@" ;;
+  ack-recovery) cmd_ack_recovery "$@" ;;
   provision-approle) cmd_provision_approle "$@" ;;
   status) cmd_status "$@" ;;
   unseal) cmd_unseal "${1:-}" ;;
