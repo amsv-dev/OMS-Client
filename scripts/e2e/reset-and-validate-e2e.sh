@@ -113,7 +113,9 @@ if echo "$LIST_RESP" | grep -qi 'password'; then
 fi
 pass "credentials-list responde sem expor password"
 
-step "6. Skip — verificacao Telegraf .conf requer bundle na Central"
+step "6. Validar telegrafCollectors (vault-ops check)"
+bash "$ROOT/scripts/vault-ops.sh" check
+pass "telegrafCollectors OK (oms-telegraf AppRole)"
 
 step "7. Central rejeita payload com password"
 CENTRAL_URL="$(read_env ASSESSMENT_API_BASE_URL)"

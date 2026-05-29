@@ -60,9 +60,9 @@ services:
       retries: 5
 
   # Telegraf - Coleta métricas do sistema e envia para InfluxDB local
-  # Versao fixada 1.32-alpine para garantir suporte ao plugin secretstores.vault (>= 1.30).
+  # Telegraf 1.37+ com plugin secretstores.vault (API address/mount_path/secret_path/approle).
   telegraf:
-    image: telegraf:1.32-alpine
+    image: telegraf:1.38-alpine
     container_name: client-telegraf
     restart: always
     env_file:
@@ -85,8 +85,6 @@ services:
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - ./telegraf/dynamic/runtime:/etc/telegraf/telegraf.d:ro
-      # Token Vault read-only para o Telegraf, escrito pelo VaultBootstrap (PR4)
-      - ./secrets/telegraf-vault-token:/etc/telegraf/secrets/vault-token:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc:/host/etc:ro
@@ -117,6 +115,9 @@ services:
     image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-customer-agent:${OMS_IMAGE_TAG:-latest}
     container_name: client-customer-agent
     restart: always
+    # API local (vault-ops, E2E): localhost apenas — LOCAL_RUNTIME_API_PORT no .env
+    ports:
+      - "127.0.0.1:${LOCAL_RUNTIME_API_PORT:-5808}:${LOCAL_RUNTIME_API_PORT:-5808}"
     env_file:
       - .env
     environment:
@@ -162,7 +163,6 @@ services:
       # Vault (arquitectura definitiva — Vault-only)
       - VAULT_ADDR=${VAULT_ADDR:-http://oms-vault:8200}
       - VAULT_APPROLE_DIR=/app/secrets/vault-approle
-      - VAULT_TELEGRAF_TOKEN_PATH=/app/secrets/telegraf-vault-token
       - VAULT_RECOVERY_FILE=/vault/secrets/recovery-keys-FIRST-BOOT-ONLY.json
       - VAULT_AUTOUNSEAL_FILE=/vault/secrets/autounseal.bin
 
