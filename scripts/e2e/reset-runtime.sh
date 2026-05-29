@@ -25,7 +25,8 @@ docker run --rm \
     rm -f /s/vault/.initialized /s/vault/.unsealed
     rm -f /s/vault/recovery-keys-FIRST-BOOT-ONLY.json /s/vault/.bootstrap-done 2>/dev/null || true
     rm -f /s/logical-secret-store.json /s/logical-secret-store.json.bak
-    rm -rf /s/vault-approle /s/telegraf-vault-token /s/keys
+    rm -rf /s/vault-approle /s/keys
+    rm -f /s/telegraf-approle-role-id /s/telegraf-approle-secret-id
     rm -f /s/assessment-token.txt
     rm -f /td/*.conf /td/runtime/*.conf 2>/dev/null || true
     find /td -name "*.conf" -delete 2>/dev/null || true
