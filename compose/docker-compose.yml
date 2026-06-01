@@ -81,7 +81,6 @@ services:
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
       - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-centralized-runtime}
-      - DB_REMOTE_COLLECTORS_ENABLED=${DB_REMOTE_COLLECTORS_ENABLED:-false}
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - ./telegraf/dynamic/runtime:/etc/telegraf/telegraf.d:ro
@@ -106,8 +105,6 @@ services:
         condition: service_healthy
     networks:
       - client-network
-
-  # Telegraf por host remoto (modo per-host-collectors): gerado em docker-compose.host-collectors.generated.yml pelo customer-agent
 
   # Customer Agent - Replica métricas, processa alertas, executa comandos
   # CLIENT_IMAGE_REGISTRY: ghcr.io público (pull sem login) ou override para testes
@@ -151,12 +148,15 @@ services:
       - LOGICAL_ASSETS_SOFT_LIMIT=${LOGICAL_ASSETS_SOFT_LIMIT:-25}
       - COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}
       - COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED:-false}
-      - REMOTE_TELEGRAF_PROVISIONING_ENABLED=${REMOTE_TELEGRAF_PROVISIONING_ENABLED:-false}
-      - REMOTE_TELEGRAF_OUTPUT_URL=${REMOTE_TELEGRAF_OUTPUT_URL:-}
-      - REMOTE_TELEGRAF_SSH_USER=${REMOTE_TELEGRAF_SSH_USER:-}
-      - REMOTE_TELEGRAF_SSH_KEY_PATH=${REMOTE_TELEGRAF_SSH_KEY_PATH:-}
-      - REMOTE_TELEGRAF_SSH_PORT=${REMOTE_TELEGRAF_SSH_PORT:-22}
-      - REMOTE_TELEGRAF_CONFIG_DIR=${REMOTE_TELEGRAF_CONFIG_DIR:-/opt/oms/telegraf}
+      - LOGICAL_HOST_INFLUX_URL=${LOGICAL_HOST_INFLUX_URL:-}
+      - LOGICAL_HOST_SSH_USER=${LOGICAL_HOST_SSH_USER:-}
+      - LOGICAL_HOST_SSH_KEY_PATH=${LOGICAL_HOST_SSH_KEY_PATH:-}
+      - LOGICAL_HOST_SSH_PORT=${LOGICAL_HOST_SSH_PORT:-22}
+      - LOGICAL_HOST_CONFIG_DIR=${LOGICAL_HOST_CONFIG_DIR:-/opt/oms/telegraf}
+      - LOGICAL_HOST_WINRM_ENABLED=${LOGICAL_HOST_WINRM_ENABLED:-${REMOTE_WINRM_ENABLED:-false}}
+      - LOGICAL_HOST_WINRM_USER=${LOGICAL_HOST_WINRM_USER:-${REMOTE_WINRM_USER:-}}
+      - LOGICAL_HOST_WINRM_PASSWORD=${LOGICAL_HOST_WINRM_PASSWORD:-${REMOTE_WINRM_PASSWORD:-}}
+      - LOGICAL_HOST_WINRM_PORT=${LOGICAL_HOST_WINRM_PORT:-${REMOTE_WINRM_PORT:-5985}}
       - LOGICAL_COLLECTOR_CONF_DIR=${LOGICAL_COLLECTOR_CONF_DIR:-/app/telegraf-dynamic}
       - OMS_COMPOSE_PROJECT_DIR=${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}
       - OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
@@ -245,7 +245,7 @@ services:
       - SITE_CODE=${SITE_CODE:-}
       - CENTRAL_API_URL=${CENTRAL_API_URL:-}
       - LOCAL_RUNTIME_API_URL=${LOCAL_RUNTIME_API_URL:-/runtime-local}
-      - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-per-host-collectors}
+      - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-centralized-runtime}
     depends_on:
       - customer-agent
     networks:
