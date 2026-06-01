@@ -241,8 +241,11 @@ services:
     environment:
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
+      - RUNTIME_ASSET_ID=${RUNTIME_ASSET_ID:-${ASSET_ID:-unknown}}
       - SITE_CODE=${SITE_CODE:-}
       - CENTRAL_API_URL=${CENTRAL_API_URL:-}
+      - LOCAL_RUNTIME_API_URL=${LOCAL_RUNTIME_API_URL:-/runtime-local}
+      - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-per-host-collectors}
     depends_on:
       - customer-agent
     networks:
