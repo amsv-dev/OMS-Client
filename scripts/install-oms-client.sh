@@ -13,9 +13,6 @@ SOLACE_PORT="${SOLACE_PORT:-1883}"
 SOLACE_VPN="${SOLACE_VPN:-default}"
 # Canonical logical-host provisioning (legacy REMOTE_TELEGRAF_* still accepted)
 LOGICAL_HOST_INFLUX_URL="${LOGICAL_HOST_INFLUX_URL:-${REMOTE_TELEGRAF_OUTPUT_URL:-}}"
-LOGICAL_HOST_SSH_USER="${LOGICAL_HOST_SSH_USER:-${REMOTE_TELEGRAF_SSH_USER:-}}"
-LOGICAL_HOST_SSH_KEY_PATH="${LOGICAL_HOST_SSH_KEY_PATH:-${REMOTE_TELEGRAF_SSH_KEY_PATH:-}}"
-LOGICAL_HOST_SSH_PORT="${LOGICAL_HOST_SSH_PORT:-${REMOTE_TELEGRAF_SSH_PORT:-22}}"
 LOGICAL_HOST_CONFIG_DIR="${LOGICAL_HOST_CONFIG_DIR:-${REMOTE_TELEGRAF_CONFIG_DIR:-/opt/oms/telegraf}}"
 
 TOKEN=""
@@ -263,10 +260,7 @@ if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
     LOGICAL_HOST_INFLUX_URL="http://127.0.0.1:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
     echo "[install] LOGICAL_HOST_INFLUX_URL não definido; a usar default ${LOGICAL_HOST_INFLUX_URL}"
   fi
-  if [[ -z "$LOGICAL_HOST_SSH_USER" ]] || [[ -z "$LOGICAL_HOST_SSH_KEY_PATH" ]]; then
-    echo "[install][aviso] Modo distributed-logical-hosts requer LOGICAL_HOST_SSH_USER e LOGICAL_HOST_SSH_KEY_PATH." >&2
-    echo "[install] Coloque a chave em compose/secrets/logical-host-ssh e defina LOGICAL_HOST_SSH_KEY_PATH=/app/secrets/logical-host-ssh" >&2
-  fi
+  echo "[install] Modo distributed-logical-hosts: credenciais SSH/WinRM via Assessment v2 (Cofre), não no .env." >&2
 fi
 
 if [[ -z "$TENANT_ID" ]] || [[ -z "$ASSET_ID" ]]; then
@@ -507,9 +501,6 @@ ASSESSMENT_TOKEN_FALLBACKS=
 LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=60
 LOGICAL_COLLECTOR_CONF_DIR=/app/telegraf-dynamic
 LOGICAL_HOST_INFLUX_URL=$LOGICAL_HOST_INFLUX_URL
-LOGICAL_HOST_SSH_USER=$LOGICAL_HOST_SSH_USER
-LOGICAL_HOST_SSH_KEY_PATH=$LOGICAL_HOST_SSH_KEY_PATH
-LOGICAL_HOST_SSH_PORT=$LOGICAL_HOST_SSH_PORT
 LOGICAL_HOST_CONFIG_DIR=$LOGICAL_HOST_CONFIG_DIR
 LOCAL_RUNTIME_API_PORT=5808
 LOCAL_RUNTIME_API_URL=/runtime-local
@@ -657,5 +648,5 @@ echo "[install] Assessment v2 (UI): http://${CLIENT_IP:-localhost}:${ASSESSMENT_
 echo "[install] Cofre Vault (1x por instalacao): bash scripts/vault-ops.sh bootstrap"
 echo "[install] Tenant: $TENANT_ID | Asset: $ASSET_ID"
 if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
-  echo "[install] Modo distributed-logical-hosts: configure LOGICAL_HOST_SSH_* e copie a chave para compose/secrets/logical-host-ssh"
+  echo "[install] Modo distributed-logical-hosts: registe acesso SSH/WinRM no Assessment v2 (passo Acesso à máquina → Cofre)."
 fi
