@@ -260,7 +260,7 @@ if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
     LOGICAL_HOST_INFLUX_URL="http://127.0.0.1:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
     echo "[install] LOGICAL_HOST_INFLUX_URL não definido; a usar default ${LOGICAL_HOST_INFLUX_URL}"
   fi
-  echo "[install] Modo distributed-logical-hosts: credenciais SSH/WinRM via Assessment v2 (Cofre), não no .env." >&2
+  echo "[install] Modo distributed-logical-hosts: credenciais SSH (PEM) via Assessment v2 (Cofre), não no .env." >&2
 fi
 
 if [[ -z "$TENANT_ID" ]] || [[ -z "$ASSET_ID" ]]; then
@@ -648,5 +648,5 @@ echo "[install] Assessment v2 (UI): http://${CLIENT_IP:-localhost}:${ASSESSMENT_
 echo "[install] Cofre Vault (1x por instalacao): bash scripts/vault-ops.sh bootstrap"
 echo "[install] Tenant: $TENANT_ID | Asset: $ASSET_ID"
 if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
-  echo "[install] Modo distributed-logical-hosts: registe acesso SSH/WinRM no Assessment v2 (passo Acesso à máquina → Cofre)."
+  echo "[install] Modo distributed-logical-hosts: registe acesso SSH (PEM) no Assessment v2 (passo Acesso à máquina → Cofre)."
 fi
