@@ -14,6 +14,7 @@ SOLACE_VPN="${SOLACE_VPN:-default}"
 # Canonical logical-host provisioning (legacy REMOTE_TELEGRAF_* still accepted)
 LOGICAL_HOST_INFLUX_URL="${LOGICAL_HOST_INFLUX_URL:-${REMOTE_TELEGRAF_OUTPUT_URL:-}}"
 LOGICAL_HOST_CONFIG_DIR="${LOGICAL_HOST_CONFIG_DIR:-${REMOTE_TELEGRAF_CONFIG_DIR:-/opt/oms/telegraf}}"
+LOGICAL_HOST_IP="${LOGICAL_HOST_IP:-}"
 
 TOKEN=""
 SITE_CODE="${SITE_CODE:-}"
@@ -36,6 +37,7 @@ Opções:
   --site-code CODE   Site code para assetId (ex: site1 → e2e-test-site1)
   --compose-dir DIR  Diretório do compose
   --oms-client-dir   Raiz do projeto client
+  --logical-host-ip  IP do runtime para hosts lógicos (override de LOGICAL_HOST_INFLUX_URL)
 
 Exemplo:
   API_URL=http://<cloud>:8443 bash install-oms-client.sh <TOKEN> --site-code site1
@@ -133,12 +135,46 @@ prompt_site_code_if_needed() {
 }
 
 detect_primary_ip() {
-  local ip=""
-  if command -v hostname >/dev/null 2>&1; then
-    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  detect_runtime_lan_ip "${API_URL:-}"
+}
+
+extract_url_host() {
+  local url="${1:-}"
+  url="${url#*://}"
+  local host="${url%%/*}"
+  host="${host%%:*}"
+  echo "$host"
+}
+
+is_docker_or_loopback_ip() {
+  local ip="$1"
+  [[ "$ip" == 127.* ]] && return 0
+  [[ "$ip" == 172.17.* ]] && return 0
+  [[ "$ip" == 172.18.* ]] && return 0
+  [[ "$ip" == 169.254.* ]] && return 0
+  return 1
+}
+
+detect_runtime_lan_ip() {
+  local route_target=""
+  if [[ -n "${1:-}" ]]; then
+    route_target="$(extract_url_host "$1")"
   fi
-  if [[ -z "$ip" ]] && command -v ip >/dev/null 2>&1; then
-    ip="$(ip -o -4 route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i==\"src\") {print $(i+1); exit}}')"
+  if [[ -z "$route_target" || "$route_target" == "localhost" ]]; then
+    route_target="1.1.1.1"
+  fi
+  local ip=""
+  if command -v ip >/dev/null 2>&1; then
+    ip="$(ip -o -4 route get "$route_target" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')"
+  fi
+  if [[ -z "$ip" ]] && command -v hostname >/dev/null 2>&1; then
+    local candidate
+    for candidate in $(hostname -I 2>/dev/null); do
+      if ! is_docker_or_loopback_ip "$candidate"; then
+        ip="$candidate"
+        break
+      fi
+    done
   fi
   echo "$ip"
 }
@@ -148,6 +184,7 @@ while [[ $# -gt 0 ]]; do
     --site-code) SITE_CODE="$2"; shift 2 ;;
     --compose-dir) COMPOSE_DIR="$2"; shift 2 ;;
     --oms-client-dir) OMS_CLIENT_DIR="$2"; shift 2 ;;
+    --logical-host-ip) LOGICAL_HOST_IP="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *)
       [[ -z "$TOKEN" ]] && TOKEN="$1" || { [[ -z "$API_URL" ]] && [[ "${1:0:1}" != "-" ]] && API_URL="$1"; }
@@ -256,10 +293,18 @@ COLLECTOR_PLACEMENT_STRATEGY="${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}"
 COLLECTOR_AUTO_SCALE_ENABLED=false
 
 if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
-  if [[ -z "$LOGICAL_HOST_INFLUX_URL" ]]; then
-    LOGICAL_HOST_INFLUX_URL="http://127.0.0.1:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
-    echo "[install] LOGICAL_HOST_INFLUX_URL não definido; a usar default ${LOGICAL_HOST_INFLUX_URL}"
+  if [[ -n "$LOGICAL_HOST_IP" ]]; then
+    LOGICAL_HOST_INFLUX_URL="http://${LOGICAL_HOST_IP}:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
   fi
+  if [[ -z "$LOGICAL_HOST_INFLUX_URL" ]]; then
+    RUNTIME_LAN_IP="$(detect_runtime_lan_ip "$API_URL")"
+    if [[ -z "$RUNTIME_LAN_IP" ]]; then
+      echo "[erro] Não foi possível detetar IP LAN do runtime para LOGICAL_HOST_INFLUX_URL. Defina LOGICAL_HOST_INFLUX_URL ou --logical-host-ip." >&2
+      exit 1
+    fi
+    LOGICAL_HOST_INFLUX_URL="http://${RUNTIME_LAN_IP}:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
+  fi
+  echo "[install] LOGICAL_HOST_INFLUX_URL=${LOGICAL_HOST_INFLUX_URL}"
   echo "[install] Modo distributed-logical-hosts: credenciais SSH (PEM) via Assessment v2 (Cofre), não no .env." >&2
 fi
 
