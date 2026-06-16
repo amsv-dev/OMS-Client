@@ -275,7 +275,7 @@ SOLACE_USERNAME="$(extract "solace.username")"
 SOLACE_PASSWORD="$(extract "solace.password")"
 RESPONSE_API_URL="$(extract "apiUrl")"
 OBSERVABILITY_MODE="$(extract "observabilityPolicy.mode")"
-LOGICAL_ASSETS_SOFT_LIMIT="$(extract "observabilityPolicy.logicalAssetsSoftLimit")"
+MAX_SERVICES="$(extract "observabilityPolicy.maxServices")"
 COLLECTOR_PLACEMENT_STRATEGY="$(extract "observabilityPolicy.collectorPlacementStrategy")"
 COLLECTOR_AUTO_SCALE_ENABLED="$(extract "observabilityPolicy.collectorAutoScaleEnabled")"
 
@@ -283,12 +283,7 @@ COLLECTOR_AUTO_SCALE_ENABLED="$(extract "observabilityPolicy.collectorAutoScaleE
 [[ -n "$RESPONSE_API_URL" ]] && API_URL="${RESPONSE_API_URL%/}"
 
 OBSERVABILITY_MODE="${OBSERVABILITY_MODE:-centralized-runtime}"
-case "${OBSERVABILITY_MODE,,}" in
-  per-host-collectors|distributed-collectors)
-    OBSERVABILITY_MODE="distributed-logical-hosts"
-    ;;
-esac
-LOGICAL_ASSETS_SOFT_LIMIT="${LOGICAL_ASSETS_SOFT_LIMIT:-25}"
+MAX_SERVICES="${MAX_SERVICES:-25}"
 COLLECTOR_PLACEMENT_STRATEGY="${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}"
 COLLECTOR_AUTO_SCALE_ENABLED=false
 
@@ -351,7 +346,6 @@ if command -v jq >/dev/null 2>&1; then
       hostname: $hostname,
       ipAddress: $ipAddress,
       assetName: $hostname,
-      assetType: "server",
       instanceLabel: $hostname
     }')"
 elif command -v python3 >/dev/null 2>&1; then
@@ -374,7 +368,6 @@ payload = {
   "hostname": "${HOSTNAME_SHORT}",
   "ipAddress": "${HOST_IP}",
   "assetName": "${HOSTNAME_SHORT}",
-  "assetType": "server",
   "instanceLabel": "${HOSTNAME_SHORT}"
 }
 print(json.dumps(payload))
@@ -533,7 +526,7 @@ COLLECTOR_TYPE=telegraf
 ORIGIN_SCOPE=local
 SERVICE_TYPE=host
 OBSERVABILITY_MODE=$OBSERVABILITY_MODE
-LOGICAL_ASSETS_SOFT_LIMIT=$LOGICAL_ASSETS_SOFT_LIMIT
+MAX_SERVICES=$MAX_SERVICES
 COLLECTOR_PLACEMENT_STRATEGY=$COLLECTOR_PLACEMENT_STRATEGY
 COLLECTOR_AUTO_SCALE_ENABLED=$COLLECTOR_AUTO_SCALE_ENABLED
 OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
@@ -628,7 +621,6 @@ if command -v jq >/dev/null 2>&1; then
       hostname: $hostname,
       ipAddress: $ipAddress,
       assetName: $hostname,
-      assetType: "server",
       instanceLabel: $hostname
     }')"
 elif command -v python3 >/dev/null 2>&1; then
@@ -653,7 +645,6 @@ payload = {
   "hostname": "${HOSTNAME_SHORT}",
   "ipAddress": "${HOST_IP}",
   "assetName": "${HOSTNAME_SHORT}",
-  "assetType": "server",
   "instanceLabel": "${HOSTNAME_SHORT}"
 }
 print(json.dumps(payload))
@@ -686,12 +677,12 @@ if command -v jq >/dev/null 2>&1; then
 fi
 rm -f "$ACTIVATE_TMP"
 
-ASSESSMENT_V2_PORT="${CLIENT_ASSESSMENT_V2_HTTP_PORT:-3122}"
+ORAMIX_CONSOLE_PORT="${CLIENT_ORAMIX_CONSOLE_HTTP_PORT:-3122}"
 CLIENT_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo "[install] Concluído."
-echo "[install] Assessment v2 (UI): http://${CLIENT_IP:-localhost}:${ASSESSMENT_V2_PORT}/"
+echo "[install] Oramix Console (UI): http://${CLIENT_IP:-localhost}:${ORAMIX_CONSOLE_PORT}/"
 echo "[install] Cofre Vault (1x por instalacao): bash scripts/vault-ops.sh bootstrap"
 echo "[install] Tenant: $TENANT_ID | Asset: $ASSET_ID"
 if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
-  echo "[install] Modo distributed-logical-hosts: registe acesso SSH (PEM) no Assessment v2 (passo Acesso à máquina → Cofre)."
+  echo "[install] Modo distributed-logical-hosts: registe credenciais SSH no Oramix Console (Vault → Hosts)."
 fi

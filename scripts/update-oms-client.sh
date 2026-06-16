@@ -15,7 +15,7 @@ Fluxo suportado (operador na VM):
 O script:
   - Valida .env e token de assessment
   - Corrige LOKI_URL (Cloud :3100 -> api-proxy :8443) quando aplicavel
-  - docker compose pull  (todas as imagens: vault, agent, assessment-v2, telegraf, ...)
+  - docker compose pull  (todas as imagens: vault, agent, oramix-console, telegraf, ...)
   - docker compose up -d --remove-orphans --force-recreate
   - Espera Vault unsealed (auto-unseal pelo customer-agent)
 
@@ -125,7 +125,7 @@ dc() {
     "$@"
 }
 
-echo "[update] Pull de imagens (vault, customer-agent, assessment-v2, telegraf, influx, promtail, ...)"
+echo "[update] Pull de imagens (vault, customer-agent, oramix-console, telegraf, influx, promtail, ...)"
 dc pull
 
 echo "[update] Recriar stack (--force-recreate para aplicar imagens novas)..."
@@ -147,7 +147,7 @@ fi
 
 echo "[update] Estado dos containers:"
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' \
-  | grep -E 'vault|customer-agent|assessment|telegraf|influx|promtail' || true
+  | grep -E 'vault|customer-agent|oramix-console|telegraf|influx|promtail' || true
 
 echo "[update] Concluido."
-echo "[update] UI Assessment v2: http://<IP-VM>:${CLIENT_ASSESSMENT_V2_HTTP_PORT:-3122}/"
+echo "[update] Oramix Console: http://<IP-VM>:${CLIENT_ORAMIX_CONSOLE_HTTP_PORT:-3122}/"

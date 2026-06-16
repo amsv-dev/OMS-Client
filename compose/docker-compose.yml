@@ -145,7 +145,7 @@ services:
       - ASSESSMENT_TOKEN_FILE=${ASSESSMENT_TOKEN_FILE:-/app/secrets/assessment-token.txt}
       - ASSESSMENT_TOKEN_FALLBACKS=${ASSESSMENT_TOKEN_FALLBACKS:-}
       - LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=${LOGICAL_ASSET_SYNC_INTERVAL_SECONDS:-60}
-      - LOGICAL_ASSETS_SOFT_LIMIT=${LOGICAL_ASSETS_SOFT_LIMIT:-25}
+      - MAX_SERVICES=${MAX_SERVICES:-25}
       - COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}
       - COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED:-false}
       - LOGICAL_HOST_INFLUX_URL=${LOGICAL_HOST_INFLUX_URL:-}
@@ -208,29 +208,13 @@ services:
     networks:
       - client-network
 
-  # Assessment UI - Client onboarding frontend
-  assessment:
-    image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-assessment:${OMS_IMAGE_TAG:-latest}
-    container_name: client-assessment
+  # Oramix Console - Client onboarding frontend (canonical)
+  oramix-console:
+    image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-oramix-console:${OMS_IMAGE_TAG:-latest}
+    container_name: client-oramix-console
     restart: always
     ports:
-      - "${CLIENT_ASSESSMENT_HTTP_PORT:-3002}:80"
-    environment:
-      - TENANT_ID=${TENANT_ID:-unknown}
-      - ASSET_ID=${ASSET_ID:-unknown}
-      - SITE_CODE=${SITE_CODE:-}
-    depends_on:
-      - customer-agent
-    networks:
-      - client-network
-
-  # Assessment UI v2 - Client onboarding frontend (shadcn layout)
-  assessment-v2:
-    image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-assessment-v2:${OMS_IMAGE_TAG:-latest}
-    container_name: client-assessment-v2
-    restart: always
-    ports:
-      - "${CLIENT_ASSESSMENT_V2_HTTP_PORT:-3122}:80"
+      - "${CLIENT_ORAMIX_CONSOLE_HTTP_PORT:-3122}:80"
     environment:
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
