@@ -10,7 +10,7 @@ cd ~/oms-client
 bash scripts/install-oms-client.sh <TOKEN> "http://<API>:8443"
 ```
 
-Depois: Assessment v2 em `http://<IP-VM>:3122/` (Entrada → Cofre → Bases lógicas).
+Depois: **Oramix Console** em `http://<IP-VM>:3122/` (Vault → conta admin → Hosts → Serviços).
 
 ## Scripts canónicos
 
@@ -24,8 +24,8 @@ Depois: Assessment v2 em `http://<IP-VM>:3122/` (Entrada → Cofre → Bases ló
 ## O que cada parte faz
 
 - **Runtime host (catálogo central):** `install-oms-client.sh` — não é a UI.
-- **Cofre Vault:** wizard na UI (Cofre) ou `vault-ops.sh bootstrap`.
-- **Logical assets:** Assessment v2 (UI) — o agent gera Telegraf em `compose/telegraf/dynamic/`.
+- **Cofre Vault:** wizard no Oramix Console ou `vault-ops.sh bootstrap`.
+- **Hosts e serviços:** Oramix Console — o agent gera Telegraf em `compose/telegraf/dynamic/`.
 
 ## Pasta `e2e/` (QA interna)
 
