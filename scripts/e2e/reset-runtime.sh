@@ -34,23 +34,40 @@ docker run --rm \
 
 if [ -f "$ENV_FILE" ]; then
   sed -i '/^OMS_CREDSTORE_MODE=/d' "$ENV_FILE" 2>/dev/null || true
+  # Restaurar assessment-token.txt a partir do .env (o wizard e o agent precisam dele).
+  TOKEN_FROM_ENV="$(grep -E '^ASSESSMENT_TOKEN=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+  if [ -n "${TOKEN_FROM_ENV:-}" ]; then
+    printf '%s' "$TOKEN_FROM_ENV" > "$COMPOSE_DIR/secrets/assessment-token.txt"
+    chmod 600 "$COMPOSE_DIR/secrets/assessment-token.txt" 2>/dev/null || true
+    echo "[reset-runtime] assessment-token.txt restaurado a partir do .env"
+  else
+    echo "[reset-runtime] AVISO: ASSESSMENT_TOKEN em falta no .env — cole o token no wizard." >&2
+  fi
 fi
 
-echo "[reset-runtime] Subir stack (vault + customer-agent)..."
-docker compose -f "$COMPOSE_DIR/docker-compose.yml" --env-file "$ENV_FILE" pull vault customer-agent 2>/dev/null || true
-docker compose -f "$COMPOSE_DIR/docker-compose.yml" --env-file "$ENV_FILE" up -d --force-recreate vault customer-agent
+echo "[reset-runtime] Subir stack (vault + customer-agent + oramix-console)..."
+docker compose -f "$COMPOSE_DIR/docker-compose.yml" --env-file "$ENV_FILE" pull vault customer-agent oramix-console 2>/dev/null || true
+docker compose -f "$COMPOSE_DIR/docker-compose.yml" --env-file "$ENV_FILE" up -d --force-recreate vault customer-agent oramix-console
 
-echo "[reset-runtime] Aguardar Vault unsealed (max 120s)..."
-for i in $(seq 1 24); do
-  if docker exec oms-vault vault status 2>/dev/null | grep -qE 'Sealed[[:space:]]+false'; then
-    echo "[reset-runtime] Vault deselado e operacional."
-    break
-  fi
-  sleep 5
-  if [ "$i" -eq 24 ]; then
-    echo "[reset-runtime] AVISO: Vault ainda selado. Proximo: vault-ops.sh bootstrap ou logs do agent." >&2
-  fi
-done
+echo "[reset-runtime] Aguardar contentores (vault/agent/console)..."
+sleep 5
 
-docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'vault|customer-agent|assessment|telegraf|influx' || true
-echo "[reset-runtime] Concluido."
+# Após reset o Vault fica NÃO inicializado — o bootstrap faz-se no wizard da Console.
+# Só reportamos estado; não esperar "unsealed" (isso só aplica a Vault já init).
+if docker exec oms-vault vault status 2>/dev/null | grep -qE 'Initialized[[:space:]]+true'; then
+  echo "[reset-runtime] Vault já inicializado — a aguardar unseal (max 60s)..."
+  for i in $(seq 1 12); do
+    if docker exec oms-vault vault status 2>/dev/null | grep -qE 'Sealed[[:space:]]+false'; then
+      echo "[reset-runtime] Vault deselado e operacional."
+      break
+    fi
+    sleep 5
+  done
+else
+  echo "[reset-runtime] Vault não inicializado (esperado). Bootstrap no wizard: Token → Cofre."
+fi
+
+CONSOLE_PORT="$(grep -E '^CLIENT_ORAMIX_CONSOLE_HTTP_PORT=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)"
+CONSOLE_PORT="${CONSOLE_PORT:-3122}"
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -E 'vault|customer-agent|oramix-console|telegraf|influx' || true
+echo "[reset-runtime] Concluido. Console: http://<IP-desta-VM>:${CONSOLE_PORT}/"
