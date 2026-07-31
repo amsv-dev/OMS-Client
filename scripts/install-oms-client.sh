@@ -218,6 +218,12 @@ if [[ ! -f "$COMPOSE_DIR/docker-compose.yml" ]]; then
   mkdir -p "$(dirname "$OMS_CLIENT_DIR")"
   git clone --depth 1 "$OMS_CLIENT_REPO" "$OMS_CLIENT_DIR"
   echo "[install] Clone concluído."
+  chmod +x "$OMS_CLIENT_DIR"/scripts/*.sh "$OMS_CLIENT_DIR"/scripts/e2e/*.sh 2>/dev/null || true
+fi
+
+# Normalizar +x nos scripts (sync público / Windows→Linux muitas vezes perde o bit).
+if [[ -d "$OMS_CLIENT_DIR/scripts" ]]; then
+  chmod +x "$OMS_CLIENT_DIR"/scripts/*.sh "$OMS_CLIENT_DIR"/scripts/e2e/*.sh 2>/dev/null || true
 fi
 
 # Validar token
