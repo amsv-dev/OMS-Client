@@ -71,3 +71,5 @@ CONSOLE_PORT="$(grep -E '^CLIENT_ORAMIX_CONSOLE_HTTP_PORT=' "$ENV_FILE" 2>/dev/n
 CONSOLE_PORT="${CONSOLE_PORT:-3122}"
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -E 'vault|customer-agent|oramix-console|telegraf|influx' || true
 echo "[reset-runtime] Concluido. Console: http://<IP-desta-VM>:${CONSOLE_PORT}/"
+echo "[reset-runtime] Nota: o rascunho Hosts/Serviços no browser limpa-se sozinho quando o Vault volta a «não inicializado»."
+echo "[reset-runtime] Nota: assets já registados no catálogo Central NÃO são apagados por este reset (só Vault/Influx/secrets/Telegraf local)."
