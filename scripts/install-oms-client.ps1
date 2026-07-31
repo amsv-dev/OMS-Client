@@ -40,4 +40,4 @@ docker compose pull
 docker compose up -d
 Pop-Location
 
-Write-Host "Instalacao concluida. Assessment: http://localhost:3111 (ajuste portas no compose se necessario)."
+Write-Host "Instalacao concluida. Oramix Console: http://localhost:3122 (ajuste portas no compose se necessario)."

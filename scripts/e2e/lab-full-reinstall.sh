@@ -64,5 +64,5 @@ sed -i 's/\r$//' ~/bootstrap-logical-host.sh 2>/dev/null || true
 echo "$SSH_PASS" | sudo -S bash ~/bootstrap-logical-host.sh --generate-keypair --non-interactive
 REMOTE
 
-say "Concluído. Próximo: Assessment http://10.69.105.43:3122/ — token de instalação acima."
+say "Concluído. Próximo: Oramix Console http://10.69.105.43:3122/ — token de instalação acima."
 say "TOKEN=$TOKEN"

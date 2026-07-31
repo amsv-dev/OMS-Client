@@ -29,7 +29,7 @@ Preparar host lógico Linux para OMS (SSH + PEM).
 Opções:
   --service-user NAME       Utilizador de serviço (default: oms-telegraf)
   --config-dir PATH         Pasta de config Telegraf (default: /opt/oms/telegraf)
-  --generate-keypair        Gera par ed25519 e imprime chave privada para o Assessment
+  --generate-keypair        Gera par ed25519 e imprime chave privada para o Oramix Console
   --authorized-key TEXT     Linha authorized_keys (ssh-ed25519 AAAA... user@host)
   --authorized-key-file PATH  Ficheiro .pub com a chave pública
   --non-interactive         Sem menus (exige --generate-keypair ou --authorized-key*)
@@ -117,7 +117,7 @@ resolve_auth_mode() {
   fi
   if [[ -n "$AUTHORIZED_KEY" ]]; then
     install_authorized_key "$AUTHORIZED_KEY"
-    say "Chave pública configurada. Use a chave privada correspondente no Assessment."
+    say "Chave pública configurada. Use a chave privada correspondente no Oramix Console."
     return
   fi
   if [[ -n "$AUTHORIZED_KEY_FILE" ]]; then
@@ -135,7 +135,7 @@ resolve_auth_mode() {
   local choice=""
   if [[ -r /dev/tty ]]; then
     say "Como configurar autenticação SSH para $SERVICE_USER?"
-    say "  1) Gerar novo par de chaves (recomendado) — imprime PEM para colar no Assessment"
+    say "  1) Gerar novo par de chaves (recomendado) — imprime PEM para colar no Oramix Console"
     say "  2) Fornecer ficheiro de chave pública (.pub)"
     say "  3) Colar linha authorized_keys"
     printf "Escolha [1]: " >/dev/tty
@@ -179,4 +179,4 @@ else
   fail "$SERVICE_USER não consegue escrever em $CONFIG_DIR."
 fi
 
-say "Concluído. No Assessment use utilizador «$SERVICE_USER», porta SSH 22 e a chave PEM privada."
+say "Concluído. No Oramix Console use utilizador «$SERVICE_USER», porta SSH 22 e a chave PEM privada."

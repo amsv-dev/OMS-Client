@@ -134,7 +134,7 @@ if ($GenerateKeypair) {
     New-OmsKeypair
 } elseif ($AuthorizedKey) {
     Install-AuthorizedKeyLine $AuthorizedKey
-    Write-Status "Chave pública configurada. Use a chave privada correspondente no Assessment."
+    Write-Status "Chave pública configurada. Use a chave privada correspondente no Oramix Console."
 } elseif ($AuthorizedKeyFile) {
     if (-not (Test-Path $AuthorizedKeyFile)) {
         Write-ErrorStatus "Ficheiro não encontrado: $AuthorizedKeyFile"
@@ -168,8 +168,8 @@ $telegrafSvc = Get-Service -Name telegraf -ErrorAction SilentlyContinue
 if ($telegrafSvc) {
     Write-Status "Serviço telegraf encontrado ($($telegrafSvc.Status))."
 } else {
-    Write-Status "AVISO: serviço telegraf não instalado. Instale antes de registar no Assessment."
+    Write-Status "AVISO: serviço telegraf não instalado. Instale antes de registar no Oramix Console."
     Write-Status "  https://docs.influxdata.com/telegraf/v1/install/"
 }
 
-Write-Status "Concluído. No Assessment: utilizador «$ServiceUser», porta SSH 22, chave PEM privada."
+Write-Status "Concluído. No Oramix Console: utilizador «$ServiceUser», porta SSH 22, chave PEM privada."

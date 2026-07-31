@@ -145,7 +145,7 @@ cmd_bootstrap() {
   rm -f /tmp/vault-ops-bootstrap.json
   echo ""
   echo "[vault-ops] ACCAO: redireccione o JSON acima para cofre offline (2 locais)."
-  echo "[vault-ops] Depois: bash scripts/vault-ops.sh ack-recovery (ou wizard Assessment → Concluir)."
+  echo "[vault-ops] Depois: bash scripts/vault-ops.sh ack-recovery (ou wizard Oramix Console → Concluir)."
   echo "[vault-ops] As keys NAO ficam gravadas em plaintext no host (ADR-011)."
 }
 

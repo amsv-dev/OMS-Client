@@ -13,7 +13,7 @@ Fluxo suportado (operador na VM):
   bash scripts/update-oms-client.sh
 
 O script:
-  - Valida .env e token de assessment
+  - Valida .env e token do Oramix Console
   - Corrige LOKI_URL (Cloud :3100 -> api-proxy :8443) quando aplicavel
   - docker compose pull  (todas as imagens: vault, agent, oramix-console, telegraf, ...)
   - docker compose up -d --remove-orphans --force-recreate
