@@ -246,7 +246,7 @@ prompt_site_code_if_needed "$SUGGESTED_SITE_CODE"
 HOST_IP="$(detect_primary_ip)"
 
 echo "[install] A obter dados da Central (token válido)..."
-VALIDATE_URL="${API_URL}/api/assessment/validate"
+VALIDATE_URL="${API_URL}/api/console/validate"
 [[ -n "$SITE_CODE" ]] && VALIDATE_URL="${VALIDATE_URL}?siteCode=${SITE_CODE}"
 RESPONSE="$(curl -fsS -H "X-Customer-Token: $TOKEN" "$VALIDATE_URL")"
 
@@ -271,6 +271,8 @@ print(v or '')
 
 TENANT_ID="$(extract "runtimeIdentity.tenantId")"
 ASSET_ID="$(extract "runtimeIdentity.assetId")"
+TENANT_NAME="$(extract "tenantName")"
+RUNTIME_ASSET_NAME="$(extract "runtimeAssetName")"
 ISSUED_AT="$(extract "runtimeIdentity.issuedAtUtc")"
 EXPIRES_AT="$(extract "runtimeIdentity.expiresAtUtc")"
 NONCE="$(extract "runtimeIdentity.nonce")"
@@ -306,7 +308,7 @@ if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
     LOGICAL_HOST_INFLUX_URL="http://${RUNTIME_LAN_IP}:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
   fi
   echo "[install] LOGICAL_HOST_INFLUX_URL=${LOGICAL_HOST_INFLUX_URL}"
-  echo "[install] Modo distributed-logical-hosts: credenciais SSH (PEM) via Assessment v2 (Cofre), não no .env." >&2
+  echo "[install] Modo distributed-logical-hosts: credenciais SSH (PEM) via Oramix Console (Cofre), não no .env." >&2
 fi
 
 if [[ -z "$TENANT_ID" ]] || [[ -z "$ASSET_ID" ]]; then
@@ -388,7 +390,7 @@ HTTP_CODE="$(
   curl -sS \
     -o "$VALIDATE_BUNDLE_TMP" \
     -w "%{http_code}" \
-    -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
+    -X POST "${API_URL}/api/console/runtime/validate-bundle" \
     -H "Content-Type: application/json" \
     -d "$VALIDATE_PAYLOAD"
 )"
@@ -525,9 +527,11 @@ printf '%s' "$TOKEN" > "$TOKEN_FILE_PATH"
 chmod 600 "$TOKEN_FILE_PATH" 2>/dev/null || true
 cat > "$COMPOSE_DIR/.env" <<EOF
 TENANT_ID=$TENANT_ID
+TENANT_NAME=${TENANT_NAME:-}
 ASSET_ID=$ASSET_ID
 SITE_CODE=${SITE_CODE:-}
 RUNTIME_ASSET_ID=$ASSET_ID
+RUNTIME_ASSET_NAME=${RUNTIME_ASSET_NAME:-}
 COLLECTOR_TYPE=telegraf
 ORIGIN_SCOPE=local
 SERVICE_TYPE=host
@@ -666,7 +670,7 @@ ACTIVATE_HTTP_CODE="$(
   curl -sS \
     -o "$ACTIVATE_TMP" \
     -w "%{http_code}" \
-    -X POST "${API_URL}/api/assessment/runtime/validate-bundle" \
+    -X POST "${API_URL}/api/console/runtime/validate-bundle" \
     -H "Content-Type: application/json" \
     -d "$ACTIVATE_PAYLOAD"
 )"
@@ -688,7 +692,7 @@ CLIENT_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo "[install] Concluído."
 echo "[install] Oramix Console (UI): http://${CLIENT_IP:-localhost}:${ORAMIX_CONSOLE_PORT}/"
 echo "[install] Cofre Vault (1x por instalacao): bash scripts/vault-ops.sh bootstrap"
-echo "[install] Tenant: $TENANT_ID | Asset: $ASSET_ID"
+echo "[install] Tenant: ${TENANT_NAME:-$TENANT_ID} ($TENANT_ID) | Asset: ${RUNTIME_ASSET_NAME:-$ASSET_ID} ($ASSET_ID)"
 if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
   echo "[install] Modo distributed-logical-hosts: registe credenciais SSH no Oramix Console (Vault → Hosts)."
 fi

@@ -12,7 +12,7 @@ Esta pasta é **gerada em runtime** pelo container `oms-vault` e pelo `customer-
 
 ## Bootstrap (instalações novas)
 
-1. UI Assessment → Cofre → **Activar cofre** → passo **Backup** (keys uma vez)
+1. UI  → Cofre → **Activar cofre** → passo **Backup** (keys uma vez)
 2. Ou CLI: `bash scripts/vault-ops.sh bootstrap` → guardar JSON no stdout offline
 3. Confirmar: wizard «Concluir activação» ou `bash scripts/vault-ops.sh ack-recovery`
 

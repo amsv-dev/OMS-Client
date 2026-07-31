@@ -128,7 +128,7 @@ if [ -n "${CENTRAL_URL:-}" ] && [ -n "${CENTRAL_TOKEN:-}" ]; then
     '{credentialReference:$ref, displayName:$dn, runtimeAssetId:$rt, serviceType:"postgresql", hostnameOrAddress:"host.example", port:5432, password:"x"}')
   HTTP=$(curl -sk -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer $CENTRAL_TOKEN" -H "Content-Type: application/json" \
-    -X POST "$CENTRAL_URL/api/assessment/logical-assets" \
+    -X POST "$CENTRAL_URLlogical-assets" \
     --data "$BAD_PAYLOAD" || true)
   [ "$HTTP" = "400" ] || fail "Central deveria ter rejeitado payload com password (HTTP=$HTTP)"
   pass "Central rejeita password com 400"
