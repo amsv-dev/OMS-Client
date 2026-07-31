@@ -5,7 +5,7 @@ TOKEN="${1:-}"
 KEY_FILE="${OMS_BOOTSTRAP_KEY:-/etc/oms/bootstrap-keys/oms-telegraf-oms-bootstrap}"
 
 if [[ -z "$TOKEN" ]]; then
-  TOKEN_FILE=~/oms-client/compose/secrets/assessment-token.txt
+  TOKEN_FILE=~/oms-client/compose/secrets/console-token.txt
   TOKEN=$(cat "$TOKEN_FILE" 2>/dev/null | tr -d '[:space:]') || { echo "ERRO: token nao encontrado"; exit 1; }
 fi
 

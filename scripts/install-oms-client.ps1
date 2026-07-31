@@ -25,9 +25,9 @@ if (-not (Test-Path ".\compose\docker-compose.yml")) {
 }
 
 $envContent = @"
-ASSESSMENT_TOKEN=$Token
+CONSOLE_TOKEN=$Token
 CENTRAL_API_URL=$CloudUrl
-ASSESSMENT_API_URL=$CloudUrl
+CONSOLE_API_URL=$CloudUrl
 RUNTIME_ASSET_ID=$RuntimeAssetId
 TENANT_ID=
 CUSTOMER_ID=

@@ -27,21 +27,21 @@ docker run --rm \
     rm -f /s/logical-secret-store.json /s/logical-secret-store.json.bak
     rm -rf /s/vault-approle /s/keys
     rm -f /s/telegraf-approle-role-id /s/telegraf-approle-secret-id
-    rm -f /s/assessment-token.txt
+    rm -f /s/console-token.txt
     rm -f /td/*.conf /td/runtime/*.conf 2>/dev/null || true
     find /td -name "*.conf" -delete 2>/dev/null || true
   '
 
 if [ -f "$ENV_FILE" ]; then
   sed -i '/^OMS_CREDSTORE_MODE=/d' "$ENV_FILE" 2>/dev/null || true
-  # Restaurar assessment-token.txt a partir do .env (o wizard e o agent precisam dele).
-  TOKEN_FROM_ENV="$(grep -E '^ASSESSMENT_TOKEN=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+  # Restaurar console-token.txt a partir do .env (o wizard e o agent precisam dele).
+  TOKEN_FROM_ENV="$(grep -E '^CONSOLE_TOKEN=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
   if [ -n "${TOKEN_FROM_ENV:-}" ]; then
-    printf '%s' "$TOKEN_FROM_ENV" > "$COMPOSE_DIR/secrets/assessment-token.txt"
-    chmod 600 "$COMPOSE_DIR/secrets/assessment-token.txt" 2>/dev/null || true
-    echo "[reset-runtime] assessment-token.txt restaurado a partir do .env"
+    printf '%s' "$TOKEN_FROM_ENV" > "$COMPOSE_DIR/secrets/console-token.txt"
+    chmod 600 "$COMPOSE_DIR/secrets/console-token.txt" 2>/dev/null || true
+    echo "[reset-runtime] console-token.txt restaurado a partir do .env"
   else
-    echo "[reset-runtime] AVISO: ASSESSMENT_TOKEN em falta no .env — cole o token no wizard." >&2
+    echo "[reset-runtime] AVISO: CONSOLE_TOKEN em falta no .env — cole o token no wizard." >&2
   fi
 fi
 

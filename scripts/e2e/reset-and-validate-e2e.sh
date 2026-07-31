@@ -119,7 +119,7 @@ pass "telegrafCollectors OK (oms-telegraf AppRole)"
 
 step "7. Central rejeita payload com password"
 CENTRAL_URL="$(read_env ASSESSMENT_API_BASE_URL)"
-CENTRAL_TOKEN="$(read_env ASSESSMENT_TOKEN)"
+CENTRAL_TOKEN="$(read_env CONSOLE_TOKEN)"
 if [ -n "${CENTRAL_URL:-}" ] && [ -n "${CENTRAL_TOKEN:-}" ]; then
   BAD_PAYLOAD=$(jq -nc \
     --arg ref "$SECRET_REF" \
@@ -133,7 +133,7 @@ if [ -n "${CENTRAL_URL:-}" ] && [ -n "${CENTRAL_TOKEN:-}" ]; then
   [ "$HTTP" = "400" ] || fail "Central deveria ter rejeitado payload com password (HTTP=$HTTP)"
   pass "Central rejeita password com 400"
 else
-  blue "  (skipped — falta ASSESSMENT_API_BASE_URL ou ASSESSMENT_TOKEN no .env)"
+  blue "  (skipped — falta ASSESSMENT_API_BASE_URL ou CONSOLE_TOKEN no .env)"
 fi
 
 step "8. Reboot vault + customer-agent e medir auto-unseal"

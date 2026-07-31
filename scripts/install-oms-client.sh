@@ -330,7 +330,7 @@ if command -v jq >/dev/null 2>&1; then
     --arg ipAddress "${HOST_IP}" \
     --arg runtimeHealthStatus "bootstrap-validated" \
     '{
-      assessmentToken: $token,
+      consoleToken: $token,
       activateRuntime: false,
       runtimeHealthStatus: $runtimeHealthStatus,
       bundle: {
@@ -352,7 +352,7 @@ elif command -v python3 >/dev/null 2>&1; then
   VALIDATE_PAYLOAD="$(python3 - <<PY
 import json
 payload = {
-  "assessmentToken": "$TOKEN",
+  "consoleToken": "$TOKEN",
   "activateRuntime": False,
   "runtimeHealthStatus": "bootstrap-validated",
   "bundle": {
@@ -514,7 +514,7 @@ fi
 # .env
 mkdir -p "$(dirname "$COMPOSE_DIR/.env")"
 mkdir -p "$COMPOSE_DIR/secrets"
-TOKEN_FILE_PATH="$COMPOSE_DIR/secrets/assessment-token.txt"
+TOKEN_FILE_PATH="$COMPOSE_DIR/secrets/console-token.txt"
 printf '%s' "$TOKEN" > "$TOKEN_FILE_PATH"
 chmod 600 "$TOKEN_FILE_PATH" 2>/dev/null || true
 cat > "$COMPOSE_DIR/.env" <<EOF
@@ -533,9 +533,9 @@ OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
 OMS_COMPOSE_HOST_PROJECT_DIR=$COMPOSE_DIR
 METRICS_ALLOWED_MEASUREMENTS=cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver,oracle
 CENTRAL_API_URL=$API_URL
-ASSESSMENT_TOKEN=$TOKEN
-ASSESSMENT_TOKEN_FILE=/app/secrets/assessment-token.txt
-ASSESSMENT_TOKEN_FALLBACKS=
+CONSOLE_TOKEN=$TOKEN
+CONSOLE_TOKEN_FILE=/app/secrets/console-token.txt
+CONSOLE_TOKEN_FALLBACKS=
 LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=60
 LOGICAL_COLLECTOR_CONF_DIR=/app/telegraf-dynamic
 LOGICAL_HOST_INFLUX_URL=$LOGICAL_HOST_INFLUX_URL
@@ -554,7 +554,7 @@ OMS_IMAGE_TAG=$OMS_IMAGE_TAG
 EOF
 
 # Hard fail se alguma chave obrigatória ficou vazia no .env (self-service must-have)
-for required in TENANT_ID ASSET_ID CENTRAL_API_URL ASSESSMENT_TOKEN; do
+for required in TENANT_ID ASSET_ID CENTRAL_API_URL CONSOLE_TOKEN; do
   if ! grep -q "^${required}=.\\+" "$COMPOSE_DIR/.env"; then
     echo "[erro] .env inválido: ${required} vazio ou ausente. Abortar." >&2
     echo "[erro] Execute novamente com token/API corretos: bash scripts/install-oms-client.sh <TOKEN> <API_URL>" >&2
@@ -575,7 +575,7 @@ if [[ -z "$runtime_env_dump" ]]; then
   echo "[erro] Não foi possível inspecionar o container client-customer-agent." >&2
   exit 1
 fi
-for required in CENTRAL_API_URL ASSESSMENT_TOKEN ASSET_ID RUNTIME_ASSET_ID; do
+for required in CENTRAL_API_URL CONSOLE_TOKEN ASSET_ID RUNTIME_ASSET_ID; do
   if ! grep -q "^${required}=.\\+" <<<"$runtime_env_dump"; then
     echo "[erro] Runtime incompleto: ${required} não está definido no client-customer-agent." >&2
     echo "[erro] Verifique compose/.env e execute novamente o install self-service." >&2
@@ -604,7 +604,7 @@ if command -v jq >/dev/null 2>&1; then
     --arg ipAddress "${HOST_IP}" \
     --arg runtimeHealthStatus "active" \
     '{
-      assessmentToken: $token,
+      consoleToken: $token,
       activateRuntime: true,
       runtimeHealthStatus: $runtimeHealthStatus,
       runtimeCheckedAtUtc: (now | todateiso8601),
@@ -628,7 +628,7 @@ elif command -v python3 >/dev/null 2>&1; then
 import json
 from datetime import datetime, timezone
 payload = {
-  "assessmentToken": "$TOKEN",
+  "consoleToken": "$TOKEN",
   "activateRuntime": True,
   "runtimeHealthStatus": "active",
   "runtimeCheckedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
