@@ -41,10 +41,10 @@ done
 
 case "$MODE" in
   runtime)
-    exec "$E2E_DIR/reset-runtime.sh"
+    exec bash "$E2E_DIR/reset-runtime.sh"
     ;;
   validate)
-    exec "$E2E_DIR/reset-and-validate-e2e.sh"
+    exec bash "$E2E_DIR/reset-and-validate-e2e.sh"
     ;;
   vm-nuke)
     MAINT=""

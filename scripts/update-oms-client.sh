@@ -43,6 +43,10 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
+# Scripts .sh do sync público muitas vezes perdem o bit +x — reset/update passam a funcionar via bash,
+# mas normalizamos permissões quando o filesystem o permitir.
+chmod +x "$OMS_CLIENT_DIR"/scripts/*.sh "$OMS_CLIENT_DIR"/scripts/e2e/*.sh 2>/dev/null || true
+
 set +u
 # shellcheck source=/dev/null
 source "$ENV_FILE" 2>/dev/null || true
