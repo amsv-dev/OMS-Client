@@ -48,7 +48,7 @@ set +u
 source "$ENV_FILE" 2>/dev/null || true
 set -u
 
-for required in CENTRAL_API_URL ASSESSMENT_TOKEN ASSET_ID RUNTIME_ASSET_ID; do
+for required in CENTRAL_API_URL CONSOLE_TOKEN ASSET_ID RUNTIME_ASSET_ID; do
   value="${!required:-}"
   if [[ -z "$value" ]]; then
     echo "[update][erro] ${required} vazio em $ENV_FILE." >&2
@@ -73,14 +73,14 @@ if grep -qE './secrets/vault:/vault/secrets:ro' "$COMPOSE_FILE" 2>/dev/null; the
   echo "[update][aviso] Corrija com git pull (deve ser :rw no customer-agent)."
 fi
 
-TOKEN_FILE_PATH="${COMPOSE_DIR}/secrets/assessment-token.txt"
+TOKEN_FILE_PATH="${COMPOSE_DIR}/secrets/console-token.txt"
 mkdir -p "${COMPOSE_DIR}/secrets"
 if [[ ! -f "$TOKEN_FILE_PATH" || ! -s "$TOKEN_FILE_PATH" ]]; then
-  printf '%s' "${ASSESSMENT_TOKEN}" > "$TOKEN_FILE_PATH"
+  printf '%s' "${CONSOLE_TOKEN}" > "$TOKEN_FILE_PATH"
   chmod 600 "$TOKEN_FILE_PATH" 2>/dev/null || true
 fi
-if ! grep -q '^ASSESSMENT_TOKEN_FILE=' "$ENV_FILE"; then
-  echo "ASSESSMENT_TOKEN_FILE=/app/secrets/assessment-token.txt" >> "$ENV_FILE"
+if ! grep -q '^CONSOLE_TOKEN_FILE=' "$ENV_FILE"; then
+  echo "CONSOLE_TOKEN_FILE=/app/secrets/console-token.txt" >> "$ENV_FILE"
 fi
 if ! grep -q '^OMS_COMPOSE_HOST_PROJECT_DIR=' "$ENV_FILE"; then
   echo "OMS_COMPOSE_HOST_PROJECT_DIR=$COMPOSE_DIR" >> "$ENV_FILE"

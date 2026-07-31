@@ -2,7 +2,7 @@
 # E2E lab: test host-access probe with provisioning readiness (run on oms-client VM).
 set -euo pipefail
 
-TOKEN_FILE="${TOKEN_FILE:-$HOME/oms-client/compose/secrets/assessment-token.txt}"
+TOKEN_FILE="${TOKEN_FILE:-$HOME/oms-client/compose/secrets/console-token.txt}"
 ENV_FILE="${ENV_FILE:-$HOME/oms-client/compose/.env}"
 API_PORT="${API_PORT:-5808}"
 KEY_FILE="${OMS_BOOTSTRAP_KEY:-/etc/oms/bootstrap-keys/oms-telegraf-oms-bootstrap}"

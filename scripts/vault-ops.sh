@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLIENT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_DIR="${COMPOSE_DIR:-$CLIENT_ROOT/compose}"
 ENV_FILE="${COMPOSE_DIR}/.env"
-TOKEN_FILE="${ASSESSMENT_TOKEN_FILE:-$COMPOSE_DIR/secrets/assessment-token.txt}"
+TOKEN_FILE="${CONSOLE_TOKEN_FILE:-$COMPOSE_DIR/secrets/console-token.txt}"
 RECOVERY_FILE="${COMPOSE_DIR}/secrets/vault/recovery-keys-FIRST-BOOT-ONLY.json"
 VAULT_CONTAINER="${VAULT_CONTAINER:-oms-vault}"
 
@@ -38,7 +38,7 @@ Comandos:
 
 Variaveis:
   COMPOSE_DIR, CUSTOMER_AGENT_URL (default http://127.0.0.1:$LOCAL_RUNTIME_API_PORT do compose/.env),
-  ASSESSMENT_TOKEN_FILE, VAULT_CONTAINER
+  CONSOLE_TOKEN_FILE, VAULT_CONTAINER
 
 Pre-requisito: customer-agent com porta LOCAL_RUNTIME_API_PORT publicada em 127.0.0.1 (docker-compose.yml).
 
