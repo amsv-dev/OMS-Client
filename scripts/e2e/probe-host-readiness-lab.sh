@@ -36,7 +36,7 @@ print(json.dumps({
 PY
 )
   curl -sS -w "\nHTTP %{http_code}\n" -X POST "$API" \
-    -H "X-Customer-Token: $TOKEN" \
+    -H "X-Tenant-Token: $TOKEN" \
     -H "Content-Type: application/json" \
     -d "$PAYLOAD"
 }
