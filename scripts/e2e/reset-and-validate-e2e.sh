@@ -44,7 +44,7 @@ RUNTIME_ASSET_ID="$(read_env RUNTIME_ASSET_ID)"
 AGENT_URL="${AGENT_URL:-http://127.0.0.1:${LOCAL_RUNTIME_API_PORT}}"
 
 agent() {
-  curl -fsS -H "X-Customer-Token: $LOCAL_TOKEN" -H "Content-Type: application/json" "$@"
+  curl -fsS -H "X-Tenant-Token: $LOCAL_TOKEN" -H "Content-Type: application/json" "$@"
 }
 
 step "1. Reset total do stack do cliente"

@@ -70,7 +70,7 @@ assert_telegraf_collectors_health() {
   [[ -n "$token" ]] || { echo "[vault-ops][erro] token vazio" >&2; return 1; }
 
   local body
-  body=$(curl -sS -H "X-Customer-Token: $token" "$AGENT_URL/local/vault/health")
+  body=$(curl -sS -H "X-Tenant-Token: $token" "$AGENT_URL/local/vault/health")
 
   echo "$body" | jq '.telegrafCollectors // {filesPresent:false, approleLoginOk:false, detail:"missing"}'
 
@@ -129,7 +129,7 @@ cmd_bootstrap() {
   local http_code
   http_code=$(curl -sS -o /tmp/vault-ops-bootstrap.json -w '%{http_code}' \
     -X POST \
-    -H "X-Customer-Token: $token" \
+    -H "X-Tenant-Token: $token" \
     -H "Content-Type: application/json" \
     -d "{\"keyShares\": $shares, \"keyThreshold\": $threshold}" \
     "$AGENT_URL/local/vault/bootstrap")
@@ -161,7 +161,7 @@ cmd_ack_recovery() {
   local http_code
   http_code=$(curl -sS -o /tmp/vault-ops-ack.json -w '%{http_code}' \
     -X POST \
-    -H "X-Customer-Token: $token" \
+    -H "X-Tenant-Token: $token" \
     "$AGENT_URL/local/vault/ack-recovery-backup")
 
   cat /tmp/vault-ops-ack.json
@@ -185,7 +185,7 @@ cmd_provision_approle() {
   local http_code
   http_code=$(curl -sS -o /tmp/vault-ops-provision.json -w '%{http_code}' \
     -X POST \
-    -H "X-Customer-Token: $token" \
+    -H "X-Tenant-Token: $token" \
     "$AGENT_URL/local/vault/provision-approle")
 
   cat /tmp/vault-ops-provision.json
@@ -215,7 +215,7 @@ cmd_status() {
     if [[ -n "$token" ]] && assert_agent_reachable 2>/dev/null; then
       echo ""
       echo "[vault-ops] GET $AGENT_URL/local/vault/health"
-      curl -sS -H "X-Customer-Token: $token" "$AGENT_URL/local/vault/health" | {
+      curl -sS -H "X-Tenant-Token: $token" "$AGENT_URL/local/vault/health" | {
         if command -v jq >/dev/null 2>&1; then jq .; else cat; fi
       }
     else

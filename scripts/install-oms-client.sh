@@ -248,7 +248,7 @@ HOST_IP="$(detect_primary_ip)"
 echo "[install] A obter dados da Central (token válido)..."
 VALIDATE_URL="${API_URL}/api/console/validate"
 [[ -n "$SITE_CODE" ]] && VALIDATE_URL="${VALIDATE_URL}?siteCode=${SITE_CODE}"
-RESPONSE="$(curl -fsS -H "X-Customer-Token: $TOKEN" "$VALIDATE_URL")"
+RESPONSE="$(curl -fsS -H "X-Tenant-Token: $TOKEN" "$VALIDATE_URL")"
 
 # Extrair campos do JSON (python3 ou jq)
 extract() {
@@ -335,7 +335,7 @@ if command -v jq >/dev/null 2>&1; then
     --arg nonce "$NONCE" \
     --arg signature "$SIGNATURE" \
     --arg hostname "${HOSTNAME_SHORT}" \
-    --arg ipAddress "${HOST_IP}" \
+    --arg address "${HOST_IP}" \
     --arg runtimeHealthStatus "bootstrap-validated" \
     '{
       consoleToken: $token,
@@ -352,7 +352,7 @@ if command -v jq >/dev/null 2>&1; then
         signature: $signature
       },
       hostname: $hostname,
-      ipAddress: $ipAddress,
+      address: $address,
       assetName: $hostname,
       instanceLabel: $hostname
     }')"
@@ -374,7 +374,7 @@ payload = {
     "signature": "$SIGNATURE"
   },
   "hostname": "${HOSTNAME_SHORT}",
-  "ipAddress": "${HOST_IP}",
+  "address": "${HOST_IP}",
   "assetName": "${HOSTNAME_SHORT}",
   "instanceLabel": "${HOSTNAME_SHORT}"
 }
@@ -611,7 +611,7 @@ if command -v jq >/dev/null 2>&1; then
     --arg nonce "$NONCE" \
     --arg signature "$SIGNATURE" \
     --arg hostname "${HOSTNAME_SHORT}" \
-    --arg ipAddress "${HOST_IP}" \
+    --arg address "${HOST_IP}" \
     --arg runtimeHealthStatus "active" \
     '{
       consoleToken: $token,
@@ -629,7 +629,7 @@ if command -v jq >/dev/null 2>&1; then
         signature: $signature
       },
       hostname: $hostname,
-      ipAddress: $ipAddress,
+      address: $address,
       assetName: $hostname,
       instanceLabel: $hostname
     }')"
@@ -653,7 +653,7 @@ payload = {
     "signature": "$SIGNATURE"
   },
   "hostname": "${HOSTNAME_SHORT}",
-  "ipAddress": "${HOST_IP}",
+  "address": "${HOST_IP}",
   "assetName": "${HOSTNAME_SHORT}",
   "instanceLabel": "${HOSTNAME_SHORT}"
 }

@@ -46,7 +46,7 @@ PY
   RESP=$(curl -s -o /tmp/probe-out.json -w "%{http_code}" \
     -X POST "$AGENT_URL/local/logical-assets/host-access/probe" \
     -H "Content-Type: application/json" \
-    -H "X-Customer-Token: $TOKEN" \
+    -H "X-Tenant-Token: $TOKEN" \
     --data "$PAYLOAD" \
     --max-time 60)
   echo "HTTP $RESP"
