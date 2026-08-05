@@ -45,10 +45,10 @@ services:
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=localpass123
-      - DOCKER_INFLUXDB_INIT_ORG=client
-      - DOCKER_INFLUXDB_INIT_BUCKET=metrics
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=client-local-token
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_ADMIN_PASSWORD:-localpass123}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_LOCAL_ORG:-client}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_LOCAL_BUCKET:-metrics}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_LOCAL_TOKEN:-client-local-token}
     volumes:
       - influxdb-local-data:/var/lib/influxdb2
     networks:
@@ -81,6 +81,9 @@ services:
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
       - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-centralized-runtime}
+      - INFLUXDB_LOCAL_TOKEN=${INFLUXDB_LOCAL_TOKEN:-client-local-token}
+      - INFLUXDB_LOCAL_ORG=${INFLUXDB_LOCAL_ORG:-client}
+      - INFLUXDB_LOCAL_BUCKET=${INFLUXDB_LOCAL_BUCKET:-metrics}
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - ./telegraf/dynamic/runtime:/etc/telegraf/telegraf.d:ro
@@ -103,6 +106,13 @@ services:
       # customer-agent (VaultUnsealService), nao bloqueamos Telegraf por isso.
       vault:
         condition: service_healthy
+    healthcheck:
+      # Processo vivo — collectors Vault podem falhar ate unseal/bootstrap; o smoke gate cobre isso.
+      test: ["CMD-SHELL", "pidof telegraf >/dev/null 2>&1 || pgrep -x telegraf >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
     networks:
       - client-network
 
@@ -146,6 +156,7 @@ services:
       - CONSOLE_TOKEN_FALLBACKS=${CONSOLE_TOKEN_FALLBACKS:-}
       - LOGICAL_ASSET_SYNC_INTERVAL_SECONDS=${LOGICAL_ASSET_SYNC_INTERVAL_SECONDS:-60}
       - MAX_SERVICES=${MAX_SERVICES:-25}
+      - SERVICE_LIMIT_SCOPE=${SERVICE_LIMIT_SCOPE:-total}
       - COLLECTOR_PLACEMENT_STRATEGY=${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}
       - COLLECTOR_AUTO_SCALE_ENABLED=${COLLECTOR_AUTO_SCALE_ENABLED:-false}
       - LOGICAL_HOST_INFLUX_URL=${LOGICAL_HOST_INFLUX_URL:-}
@@ -161,14 +172,22 @@ services:
 
       # InfluxDB Local - Leitura de métricas
       - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
-      - INFLUXDB_LOCAL_TOKEN=client-local-token
-      - INFLUXDB_LOCAL_ORG=client
-      - INFLUXDB_LOCAL_BUCKET=metrics
+      - INFLUXDB_LOCAL_TOKEN=${INFLUXDB_LOCAL_TOKEN:-client-local-token}
+      - INFLUXDB_LOCAL_ORG=${INFLUXDB_LOCAL_ORG:-client}
+      - INFLUXDB_LOCAL_BUCKET=${INFLUXDB_LOCAL_BUCKET:-metrics}
     depends_on:
       influxdb-local:
         condition: service_healthy
       vault:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget -qO- http://127.0.0.1:${LOCAL_RUNTIME_API_PORT:-5808}/health/live >/dev/null 2>&1 || curl -fsS http://127.0.0.1:${LOCAL_RUNTIME_API_PORT:-5808}/health/live >/dev/null 2>&1"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
@@ -226,14 +245,22 @@ services:
       - LOCAL_RUNTIME_API_URL=${LOCAL_RUNTIME_API_URL:-/runtime-local}
       - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-centralized-runtime}
     depends_on:
-      - customer-agent
+      customer-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || curl -fsS http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - client-network
 
   # NOTE: Remote execution via CommandReceiverService (Solace)
   # See documentacao/decisoes/ADR-001-remote-execution.md
 
-  # Demo Triggers - Serviço de teste para disparar eventos (apenas dev)
+  # Demo Triggers - Serviço de teste para disparar eventos (apenas lab/dev)
+  # Nao sobe no caminho default de producao. Activar: docker compose --profile lab up -d
   demo-triggers:
     image: node:20-alpine
     container_name: client-demo-triggers
@@ -245,10 +272,11 @@ services:
     ports:
       - "${CLIENT_DEMO_TRIGGERS_PORT:-3101}:3001"
     environment:
-      - SOLACE__HOST=192.168.56.30
+      - SOLACE__HOST=${SOLACE__HOST:-}
     networks:
       - client-network
     profiles:
+      - lab
       - dev
 
 volumes:
