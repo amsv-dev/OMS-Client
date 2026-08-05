@@ -17,7 +17,7 @@ O script:
   - Corrige LOKI_URL (Cloud :3100 -> api-proxy :8443) quando aplicavel
   - docker compose pull  (todas as imagens: vault, agent, oramix-console, telegraf, ...)
   - docker compose up -d --remove-orphans --force-recreate
-  - Espera Vault unsealed (auto-unseal pelo customer-agent)
+  - Corre smoke gate (Vault unsealed + agent/console/telegraf) — falha se runtime doente
 
 Nao faz reset do cofre nem apaga volumes. Para runtime limpo: bash scripts/reset-client.sh --runtime
 
@@ -90,6 +90,24 @@ if ! grep -q '^OMS_COMPOSE_HOST_PROJECT_DIR=' "$ENV_FILE"; then
   echo "OMS_COMPOSE_HOST_PROJECT_DIR=$COMPOSE_DIR" >> "$ENV_FILE"
 fi
 
+# Backfill Influx secrets em installs antigos (defaults de lab) — nao regenera se ja existirem.
+if ! grep -qE '^INFLUXDB_LOCAL_TOKEN=.+' "$ENV_FILE" 2>/dev/null; then
+  echo "INFLUXDB_LOCAL_TOKEN=client-local-token" >> "$ENV_FILE"
+  echo "[update][aviso] INFLUXDB_LOCAL_TOKEN em falta — a usar default de lab. Novas instalacoes geram token aleatorio."
+fi
+if ! grep -qE '^INFLUXDB_ADMIN_PASSWORD=.+' "$ENV_FILE" 2>/dev/null; then
+  echo "INFLUXDB_ADMIN_PASSWORD=localpass123" >> "$ENV_FILE"
+fi
+if ! grep -qE '^INFLUXDB_LOCAL_ORG=.+' "$ENV_FILE" 2>/dev/null; then
+  echo "INFLUXDB_LOCAL_ORG=client" >> "$ENV_FILE"
+fi
+if ! grep -qE '^INFLUXDB_LOCAL_BUCKET=.+' "$ENV_FILE" 2>/dev/null; then
+  echo "INFLUXDB_LOCAL_BUCKET=metrics" >> "$ENV_FILE"
+fi
+if ! grep -qE '^SERVICE_LIMIT_SCOPE=.+' "$ENV_FILE" 2>/dev/null; then
+  echo "SERVICE_LIMIT_SCOPE=total" >> "$ENV_FILE"
+fi
+
 SOLACE_HOST="${SOLACE__HOST:-$SOLACE_HOST}"
 if [[ -z "$SOLACE_HOST" ]]; then
   echo "[update] SOLACE__HOST nao definido. Skip correcao LOKI_URL."
@@ -135,23 +153,16 @@ dc pull
 echo "[update] Recriar stack (--force-recreate para aplicar imagens novas)..."
 dc up -d --remove-orphans --force-recreate
 
-echo "[update] Aguardar Vault unsealed (auto-unseal via customer-agent, max 90s)..."
-vault_ok=0
-for i in $(seq 1 45); do
-  if docker exec oms-vault vault status 2>/dev/null | grep -qE 'Sealed[[:space:]]+false'; then
-    vault_ok=1
-    echo "[update] Vault unsealed."
-    break
-  fi
-  sleep 2
-done
-if [[ "$vault_ok" -eq 0 ]]; then
-  echo "[update][aviso] Vault ainda selado ou inacessivel. Ver: docker logs client-customer-agent | grep VaultUnseal" >&2
-fi
-
 echo "[update] Estado dos containers:"
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' \
   | grep -E 'vault|customer-agent|oramix-console|telegraf|influx|promtail' || true
+
+echo "[update] Smoke gate (Vault + agent + console + telegraf)..."
+# Apos bootstrap do cofre, pode forcar: SMOKE_STRICT_VAULT_CHECK=1
+if ! bash "$SCRIPT_DIR/runtime-smoke.sh"; then
+  echo "[update][erro] Smoke gate falhou — runtime doente. Update nao concluido com sucesso." >&2
+  exit 1
+fi
 
 echo "[update] Concluido."
 echo "[update] Oramix Console: http://<IP-VM>:${CLIENT_ORAMIX_CONSOLE_HTTP_PORT:-3122}/"

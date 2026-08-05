@@ -284,6 +284,7 @@ SOLACE_PASSWORD="$(extract "solace.password")"
 RESPONSE_API_URL="$(extract "apiUrl")"
 OBSERVABILITY_MODE="$(extract "observabilityPolicy.mode")"
 MAX_SERVICES="$(extract "observabilityPolicy.maxServices")"
+SERVICE_LIMIT_SCOPE="$(extract "observabilityPolicy.serviceLimitScope")"
 COLLECTOR_PLACEMENT_STRATEGY="$(extract "observabilityPolicy.collectorPlacementStrategy")"
 COLLECTOR_AUTO_SCALE_ENABLED="$(extract "observabilityPolicy.collectorAutoScaleEnabled")"
 
@@ -292,6 +293,7 @@ COLLECTOR_AUTO_SCALE_ENABLED="$(extract "observabilityPolicy.collectorAutoScaleE
 
 OBSERVABILITY_MODE="${OBSERVABILITY_MODE:-centralized-runtime}"
 MAX_SERVICES="${MAX_SERVICES:-25}"
+SERVICE_LIMIT_SCOPE="${SERVICE_LIMIT_SCOPE:-total}"
 COLLECTOR_PLACEMENT_STRATEGY="${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}"
 COLLECTOR_AUTO_SCALE_ENABLED=false
 
@@ -525,6 +527,20 @@ mkdir -p "$COMPOSE_DIR/secrets"
 TOKEN_FILE_PATH="$COMPOSE_DIR/secrets/console-token.txt"
 printf '%s' "$TOKEN" > "$TOKEN_FILE_PATH"
 chmod 600 "$TOKEN_FILE_PATH" 2>/dev/null || true
+
+# InfluxDB local secrets: gerar na 1ª instalação (não reutilizar defaults de lab em produção).
+# Se o volume Influx já existir com setup antigo, manter os mesmos valores no .env.
+if [[ -f "$COMPOSE_DIR/.env" ]] && grep -qE '^INFLUXDB_LOCAL_TOKEN=.+' "$COMPOSE_DIR/.env" 2>/dev/null; then
+  INFLUXDB_LOCAL_TOKEN="$(grep -E '^INFLUXDB_LOCAL_TOKEN=' "$COMPOSE_DIR/.env" | head -1 | cut -d= -f2- | tr -d '"\r')"
+  INFLUXDB_ADMIN_PASSWORD="$(grep -E '^INFLUXDB_ADMIN_PASSWORD=' "$COMPOSE_DIR/.env" | head -1 | cut -d= -f2- | tr -d '"\r')"
+fi
+if [[ -z "${INFLUXDB_LOCAL_TOKEN:-}" ]]; then
+  INFLUXDB_LOCAL_TOKEN="$(openssl rand -hex 24 2>/dev/null || head -c 48 /dev/urandom | xxd -p -c 48)"
+fi
+if [[ -z "${INFLUXDB_ADMIN_PASSWORD:-}" ]]; then
+  INFLUXDB_ADMIN_PASSWORD="$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | xxd -p -c 32)"
+fi
+
 cat > "$COMPOSE_DIR/.env" <<EOF
 TENANT_ID=$TENANT_ID
 TENANT_NAME=${TENANT_NAME:-}
@@ -537,6 +553,7 @@ ORIGIN_SCOPE=local
 SERVICE_TYPE=host
 OBSERVABILITY_MODE=$OBSERVABILITY_MODE
 MAX_SERVICES=$MAX_SERVICES
+SERVICE_LIMIT_SCOPE=$SERVICE_LIMIT_SCOPE
 COLLECTOR_PLACEMENT_STRATEGY=$COLLECTOR_PLACEMENT_STRATEGY
 COLLECTOR_AUTO_SCALE_ENABLED=$COLLECTOR_AUTO_SCALE_ENABLED
 OMS_COMPOSE_PROJECT_NAME=${OMS_COMPOSE_PROJECT_NAME:-compose}
@@ -561,6 +578,10 @@ SOLACE__PASSWORD=$SOLACE_PASSWORD
 ASPNETCORE_ENVIRONMENT=Production
 CLIENT_IMAGE_REGISTRY=$CLIENT_IMAGE_REGISTRY
 OMS_IMAGE_TAG=$OMS_IMAGE_TAG
+INFLUXDB_ADMIN_PASSWORD=$INFLUXDB_ADMIN_PASSWORD
+INFLUXDB_LOCAL_TOKEN=$INFLUXDB_LOCAL_TOKEN
+INFLUXDB_LOCAL_ORG=client
+INFLUXDB_LOCAL_BUCKET=metrics
 EOF
 
 # Hard fail se alguma chave obrigatória ficou vazia no .env (self-service must-have)
@@ -596,6 +617,11 @@ done
 echo "[install] A validar runtime health local antes da ativação..."
 if ! docker ps --format '{{.Names}}' | grep -q '^client-customer-agent$'; then
   echo "[erro] customer-agent não está a correr; runtime activation não será concluída." >&2
+  exit 1
+fi
+
+if ! bash "$OMS_CLIENT_DIR/scripts/runtime-smoke.sh"; then
+  echo "[erro] Smoke gate falhou; runtime activation não será concluída." >&2
   exit 1
 fi
 
