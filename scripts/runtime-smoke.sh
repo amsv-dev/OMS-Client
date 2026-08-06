@@ -71,6 +71,37 @@ require_container client-telegraf || true
 require_container client-customer-agent || true
 require_container client-oramix-console || true
 
+# Influx local: token do .env tem de autenticar (volume antigo + .env novo = 401 silencioso no pipeline).
+INFLUX_PORT="$(read_env CLIENT_INFLUXDB_HTTP_PORT)"
+[[ -n "${INFLUX_PORT:-}" ]] || INFLUX_PORT="8087"
+INFLUX_TOKEN="$(read_env INFLUXDB_LOCAL_TOKEN)"
+INFLUX_ORG="$(read_env INFLUXDB_LOCAL_ORG)"
+[[ -n "${INFLUX_ORG:-}" ]] || INFLUX_ORG="client"
+if docker ps --format '{{.Names}}' | grep -qx client-influxdb; then
+  echo "[smoke] A validar auth Influx local (:${INFLUX_PORT})..."
+  if [[ -z "${INFLUX_TOKEN:-}" ]]; then
+    echo "[smoke][erro] INFLUXDB_LOCAL_TOKEN ausente em $ENV_FILE" >&2
+    fail=1
+  else
+    influx_code="$(
+      curl -sS -m 5 -o /tmp/oms-smoke-influx.json -w '%{http_code}' \
+        -H "Authorization: Token ${INFLUX_TOKEN}" \
+        "http://127.0.0.1:${INFLUX_PORT}/api/v2/buckets?org=${INFLUX_ORG}" \
+        2>/dev/null || echo 000
+    )"
+    if [[ "$influx_code" == "200" ]]; then
+      echo "[smoke] OK Influx auth."
+    else
+      echo "[smoke][erro] Influx unauthorized ou inacessivel (HTTP ${influx_code})." >&2
+      echo "[smoke] Causa tipica: volume Influx de install anterior com token diferente do .env." >&2
+      echo "[smoke] ACCAO: bash scripts/reset-client.sh --runtime" >&2
+      echo "[smoke]        (apaga volumes Vault+Influx; depois bootstrap Vault no Console)." >&2
+      echo "[smoke]        So Influx: docker compose rm -f influxdb-local && docker volume rm compose_influxdb-local-data && docker volume create compose_influxdb-local-data && docker compose -f compose/docker-compose.yml --env-file compose/.env up -d" >&2
+      fail=1
+    fi
+  fi
+fi
+
 # Vault: no install virgem o cofre arranca selado; init/unseal é no Oramix Console.
 echo "[smoke] A verificar estado do Vault (probe ${SMOKE_VAULT_PROBE_SECONDS}s)..."
 vault_ok=0
