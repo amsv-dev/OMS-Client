@@ -1,0 +1,17 @@
+---
+# Remediação: reboot do host alvo (local ou remoto agentless).
+# Usar com cuidado; host offline após o playbook é esperado.
+- name: Reboot host
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when: ansible_connection != 'local'
+
+    - name: Skip reboot on runtime local scope
+      ansible.builtin.debug:
+        msg: "reboot_host skipped for connection=local (would reboot the OMS runtime)"
+      when: ansible_connection == 'local'

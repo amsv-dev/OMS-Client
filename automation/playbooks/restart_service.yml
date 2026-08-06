@@ -1,0 +1,19 @@
+---
+# Remediação: reiniciar unidade systemd (local ou remoto agentless).
+# Extra-vars: service_name (obrigatório), ex. postgresql
+- name: Restart systemd service
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require service_name
+      ansible.builtin.assert:
+        that:
+          - service_name is defined
+          - service_name | length > 0
+        fail_msg: "service_name extra-var is required"
+
+    - name: Restart service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: restarted

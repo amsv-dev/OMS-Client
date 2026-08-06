@@ -1,7 +1,6 @@
 ---
 - name: Configure monitoring hooks
-  hosts: localhost
-  connection: local
+  hosts: all
   gather_facts: false
   tasks:
     - name: Simulate monitoring configuration

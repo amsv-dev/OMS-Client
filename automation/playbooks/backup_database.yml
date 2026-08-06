@@ -1,9 +1,8 @@
 ---
-- name: Backup local database
-  hosts: localhost
-  connection: local
+- name: Backup database (template)
+  hosts: all
   gather_facts: false
   tasks:
-    - name: Simulate backup execution
+    - name: Simulate backup
       ansible.builtin.debug:
         msg: "backup_database executed (no-op template)"
