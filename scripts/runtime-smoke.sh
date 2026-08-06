@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # OMS Client — Smoke gate pós-install/update (exit 0/1)
-# Valida containers core, Vault unsealed, agent /health/live e (quando possível) vault-ops check.
+# Valida containers core, agent /health/live, console e telegraf.
+# Vault unsealed NÃO é obrigatório no install: o bootstrap/unseal é no Oramix Console (wizard).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,7 +11,11 @@ ENV_FILE="${COMPOSE_DIR}/.env"
 VAULT_CONTAINER="${VAULT_CONTAINER:-oms-vault}"
 
 SMOKE_STRICT_VAULT_CHECK="${SMOKE_STRICT_VAULT_CHECK:-0}"
+# Só falha se Vault selado quando explicitamente pedido (pós-wizard / lab estrito).
+SMOKE_REQUIRE_VAULT_UNSEALED="${SMOKE_REQUIRE_VAULT_UNSEALED:-0}"
 SMOKE_WAIT_SECONDS="${SMOKE_WAIT_SECONDS:-90}"
+# Espera curta só para reportar estado do Vault (não bloqueia o install).
+SMOKE_VAULT_PROBE_SECONDS="${SMOKE_VAULT_PROBE_SECONDS:-6}"
 
 usage() {
   cat <<'EOF'
@@ -21,10 +26,11 @@ Uso:
 
 Variáveis:
   COMPOSE_DIR, VAULT_CONTAINER
-  SMOKE_WAIT_SECONDS          (default 90) — espera agent health
-  SMOKE_STRICT_VAULT_CHECK    (0|1, default 0) — se 1, exige vault-ops check
-                              (telegraf AppRole). Em install virgem o cofre
-                              ainda não foi bootstrapado; use 0.
+  SMOKE_WAIT_SECONDS              (default 90) — espera agent health
+  SMOKE_VAULT_PROBE_SECONDS       (default 6)  — probe rápido do estado Vault
+  SMOKE_REQUIRE_VAULT_UNSEALED    (0|1, default 0) — se 1, falha se Vault selado
+  SMOKE_STRICT_VAULT_CHECK        (0|1, default 0) — se 1, exige vault-ops check
+                                  (AppRole). Em install virgem: 0; após wizard Console: 1.
 EOF
 }
 
@@ -65,11 +71,12 @@ require_container client-telegraf || true
 require_container client-customer-agent || true
 require_container client-oramix-console || true
 
-echo "[smoke] A aguardar Vault unsealed (max ${SMOKE_WAIT_SECONDS}s)..."
+# Vault: no install virgem o cofre arranca selado; init/unseal é no Oramix Console.
+echo "[smoke] A verificar estado do Vault (probe ${SMOKE_VAULT_PROBE_SECONDS}s)..."
 vault_ok=0
-wait_iters=$((SMOKE_WAIT_SECONDS / 2))
-[[ "$wait_iters" -lt 1 ]] && wait_iters=1
-for _ in $(seq 1 "$wait_iters"); do
+vault_iters=$((SMOKE_VAULT_PROBE_SECONDS / 2))
+[[ "$vault_iters" -lt 1 ]] && vault_iters=1
+for _ in $(seq 1 "$vault_iters"); do
   if docker exec "$VAULT_CONTAINER" vault status 2>/dev/null | grep -qE 'Sealed[[:space:]]+false'; then
     vault_ok=1
     echo "[smoke] OK Vault unsealed."
@@ -78,13 +85,19 @@ for _ in $(seq 1 "$wait_iters"); do
   sleep 2
 done
 if [[ "$vault_ok" -eq 0 ]]; then
-  echo "[smoke][erro] Vault ainda selado ou inacessivel apos ${SMOKE_WAIT_SECONDS}s." >&2
-  echo "[smoke] ACCAO: docker logs client-customer-agent | grep -i VaultUnseal" >&2
-  fail=1
+  if [[ "$SMOKE_REQUIRE_VAULT_UNSEALED" == "1" || "$SMOKE_STRICT_VAULT_CHECK" == "1" ]]; then
+    echo "[smoke][erro] Vault ainda selado ou inacessivel (SMOKE_REQUIRE_VAULT_UNSEALED/STRICT activo)." >&2
+    echo "[smoke] ACCAO: completar bootstrap no Oramix Console (http://127.0.0.1:${CONSOLE_PORT}/)." >&2
+    fail=1
+  else
+    echo "[smoke][aviso] Vault ainda selado — esperado no install. Bootstrap/unseal no Oramix Console (:${CONSOLE_PORT})."
+  fi
 fi
 
 echo "[smoke] A aguardar customer-agent health/live em $AGENT_URL ..."
 agent_ok=0
+wait_iters=$((SMOKE_WAIT_SECONDS / 2))
+[[ "$wait_iters" -lt 1 ]] && wait_iters=1
 for _ in $(seq 1 "$wait_iters"); do
   if curl -fsS -m 3 "$AGENT_URL/health/live" >/dev/null 2>&1; then
     agent_ok=1
@@ -130,7 +143,7 @@ if [[ "$SMOKE_STRICT_VAULT_CHECK" == "1" ]]; then
     fail=1
   fi
 else
-  echo "[smoke] vault-ops check omitido (cofre pode ainda nao ter bootstrap). Defina SMOKE_STRICT_VAULT_CHECK=1 apos bootstrap."
+  echo "[smoke] vault-ops check omitido (cofre pode ainda nao ter bootstrap). Defina SMOKE_STRICT_VAULT_CHECK=1 apos wizard no Console."
 fi
 
 if [[ "$fail" -ne 0 ]]; then

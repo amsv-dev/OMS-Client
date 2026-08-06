@@ -18,7 +18,7 @@ Depois: **Oramix Console** em `http://<IP-VM>:3122/` (Vault → conta admin → 
 |--------|-------------|
 | `install-oms-client.sh` | **Primeira instalação** — regista runtime host na central (só precisa do token) |
 | `update-oms-client.sh` | Após `git pull` — pull imagens + recreate stack + smoke gate |
-| `runtime-smoke.sh` | Gate pós-install/update — Vault unsealed, agent/console/telegraf saudáveis (exit 0/1) |
+| `runtime-smoke.sh` | Gate pós-install/update — agent/console/telegraf saudáveis (exit 0/1). Vault selado = aviso (bootstrap no Console); só falha com `SMOKE_REQUIRE_VAULT_UNSEALED=1` |
 | `reset-client.sh` | `--runtime` limpa Vault/Influx/secrets; `--validate` QA; `--vm-nuke` apaga `~/oms-client` |
 | `vault-ops.sh` | `check` (gate), `bootstrap`, `status`, `unseal`, `recovery-path` — requer API do agent em `127.0.0.1:LOCAL_RUNTIME_API_PORT` (publicada no compose) |
 
