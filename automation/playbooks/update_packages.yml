@@ -1,7 +1,6 @@
 ---
 - name: Update package metadata
-  hosts: localhost
-  connection: local
+  hosts: all
   gather_facts: false
   tasks:
     - name: Simulate package update
