@@ -174,7 +174,9 @@ if [[ "$SMOKE_STRICT_VAULT_CHECK" == "1" ]]; then
     fail=1
   fi
 else
-  echo "[smoke] vault-ops check omitido (cofre pode ainda nao ter bootstrap). Defina SMOKE_STRICT_VAULT_CHECK=1 apos wizard no Console."
+  # Mensagem informativa — NAO significa que o update fez reset ou que o cofre esta virgem.
+  # vault-ops check e opcional (AppRole/policies); o probe acima ja validou unsealed quando aplicavel.
+  echo "[smoke] vault-ops check omitido (opcional). Para validacao estrita pos-wizard: SMOKE_STRICT_VAULT_CHECK=1."
 fi
 
 if [[ "$fail" -ne 0 ]]; then
