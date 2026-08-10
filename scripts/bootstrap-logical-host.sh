@@ -167,6 +167,20 @@ resolve_auth_mode() {
 
 resolve_auth_mode
 
+# --- Sudo NOPASSWD para remediação OMS (Ansible become: systemctl / reboot) ---
+SUDOERS_FILE="/etc/sudoers.d/oms-${SERVICE_USER}-remediation"
+# shellcheck disable=SC2086
+printf '%s\n' \
+  "# OMS remediation (playbooks become)" \
+  "${SERVICE_USER} ALL=(root) NOPASSWD: /bin/systemctl, /usr/bin/systemctl, /sbin/reboot, /usr/sbin/reboot, /sbin/shutdown, /usr/sbin/shutdown" \
+  > "$SUDOERS_FILE"
+chmod 440 "$SUDOERS_FILE"
+if ! visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1; then
+  rm -f "$SUDOERS_FILE"
+  fail "sudoers inválido — não foi possível configurar NOPASSWD para $SERVICE_USER."
+fi
+say "OK: sudo NOPASSWD de remediação em $SUDOERS_FILE"
+
 # Validação rápida
 if sudo -u "$SERVICE_USER" docker info >/dev/null 2>&1; then
   say "OK: $SERVICE_USER pode usar Docker."
@@ -177,6 +191,12 @@ if sudo -u "$SERVICE_USER" test -w "$CONFIG_DIR" 2>/dev/null; then
   say "OK: $SERVICE_USER pode escrever em $CONFIG_DIR."
 else
   fail "$SERVICE_USER não consegue escrever em $CONFIG_DIR."
+fi
+if sudo -u "$SERVICE_USER" sudo -n /usr/bin/systemctl --version >/dev/null 2>&1 \
+  || sudo -u "$SERVICE_USER" sudo -n /bin/systemctl --version >/dev/null 2>&1; then
+  say "OK: $SERVICE_USER pode usar systemctl com sudo -n (remediação)."
+else
+  say "AVISO: $SERVICE_USER ainda não passa «sudo -n systemctl» — verifique $SUDOERS_FILE."
 fi
 
 say "Concluído. No Oramix Console use utilizador «$SERVICE_USER», porta SSH 22 e a chave PEM privada."
