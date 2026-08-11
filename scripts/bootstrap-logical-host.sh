@@ -24,7 +24,8 @@ fail() { printf '[bootstrap-logical-host][erro] %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Preparar host lógico Linux para OMS (SSH + PEM).
+Preparar host lógico Linux para OMS (SSH + PEM + Docker).
+Instala Docker Engine se ainda não existir (apt/dnf/yum ou get.docker.com).
 
 Opções:
   --service-user NAME       Utilizador de serviço (default: oms-telegraf)
@@ -58,14 +59,58 @@ if [[ "$(id -u)" -ne 0 ]]; then
   fail "Execute com sudo nesta VM remota."
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-  fail "Docker não encontrado. Instale Docker antes de continuar."
-fi
+ensure_docker() {
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    say "Docker já disponível."
+    return 0
+  fi
+
+  say "A instalar Docker Engine (necessário para oms-logical-telegraf)…"
+  export DEBIAN_FRONTEND=noninteractive
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y -qq docker.io || apt-get install -y -qq docker-ce || true
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y docker 2>/dev/null || dnf install -y docker-ce 2>/dev/null || true
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y docker 2>/dev/null || true
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    if command -v curl >/dev/null 2>&1; then
+      say "Fallback: get.docker.com…"
+      curl -fsSL https://get.docker.com | sh
+    else
+      fail "Docker não encontrado e curl indisponível para get.docker.com."
+    fi
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    fail "Falha a instalar Docker Engine."
+  fi
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable docker >/dev/null 2>&1 || true
+    systemctl start docker >/dev/null 2>&1 || systemctl restart docker >/dev/null 2>&1 || true
+  fi
+
+  local i=0
+  while [[ "$i" -lt 15 ]]; do
+    docker info >/dev/null 2>&1 && break
+    i=$((i + 1))
+    sleep 2
+  done
+  docker info >/dev/null 2>&1 || fail "Docker instalado mas o daemon não responde (docker info)."
+  say "Docker Engine pronto."
+}
+
+ensure_docker
 
 # --- Utilizador e permissões ---
 id "$SERVICE_USER" &>/dev/null || useradd --system --create-home --shell /bin/bash "$SERVICE_USER"
 mkdir -p "$CONFIG_DIR" "$KEY_DIR"
 chown -R "$SERVICE_USER:$SERVICE_USER" /opt/oms
+getent group docker >/dev/null 2>&1 || groupadd docker
 usermod -aG docker "$SERVICE_USER" 2>/dev/null || true
 
 HOME_DIR="$(getent passwd "$SERVICE_USER" | cut -d: -f6)"
