@@ -24,8 +24,8 @@ fail() { printf '[bootstrap-logical-host][erro] %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Preparar host lógico Linux para OMS (SSH + PEM + Docker).
-Instala Docker Engine se ainda não existir (apt/dnf/yum ou get.docker.com).
+Preparar host lógico Linux para OMS (SSH + PEM + Telegraf nativo).
+Instala o pacote telegraf se ainda não existir (apt/dnf/yum). Não exige Docker.
 
 Opções:
   --service-user NAME       Utilizador de serviço (default: oms-telegraf)
@@ -59,72 +59,43 @@ if [[ "$(id -u)" -ne 0 ]]; then
   fail "Execute com sudo nesta VM remota."
 fi
 
-ensure_docker() {
-  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-    say "Docker já disponível."
+ensure_telegraf() {
+  if command -v telegraf >/dev/null 2>&1 || [[ -x /usr/bin/telegraf ]]; then
+    say "Telegraf nativo já disponível."
     return 0
   fi
 
-  say "A instalar Docker Engine (necessário para oms-logical-telegraf)…"
+  say "A instalar Telegraf nativo (serviço no host — sem Docker)…"
   export DEBIAN_FRONTEND=noninteractive
-
-  local net_ok=0
-  if command -v curl >/dev/null 2>&1; then
-    timeout 8 curl -fsI https://archive.ubuntu.com >/dev/null 2>&1 && net_ok=1 || true
-    timeout 8 curl -fsI https://get.docker.com >/dev/null 2>&1 && net_ok=1 || true
-  fi
 
   if command -v apt-get >/dev/null 2>&1; then
     if ! timeout 90 apt-get update -qq; then
-      fail "apt-get update falhou/timeout. Esta VM precisa de Internet/proxy para os repositórios, ou instale docker.io offline (sudo apt-get install -y docker.io)."
+      say "AVISO: apt-get update falhou/timeout. Sem Internet/proxy, instale telegraf offline e volte a correr este script."
+      return 1
     fi
-    timeout 240 apt-get install -y -qq docker.io || timeout 240 apt-get install -y -qq docker-ce || true
+    timeout 240 apt-get install -y -qq telegraf || true
   elif command -v dnf >/dev/null 2>&1; then
-    timeout 240 dnf install -y docker 2>/dev/null || timeout 240 dnf install -y docker-ce 2>/dev/null || true
+    timeout 240 dnf install -y telegraf 2>/dev/null || true
   elif command -v yum >/dev/null 2>&1; then
-    timeout 240 yum install -y docker 2>/dev/null || true
+    timeout 240 yum install -y telegraf 2>/dev/null || true
   fi
 
-  if ! command -v docker >/dev/null 2>&1; then
-    if [[ "$net_ok" -eq 0 ]]; then
-      fail "Sem Internet na VM (HTTPS archive.ubuntu.com / get.docker.com). Instale Docker manualmente: sudo apt-get install -y docker.io"
-    fi
-    if command -v curl >/dev/null 2>&1; then
-      say "Fallback: get.docker.com…"
-      timeout 120 curl -fsSL https://get.docker.com -o /tmp/oms-get-docker.sh || fail "Download get.docker.com falhou."
-      timeout 300 sh /tmp/oms-get-docker.sh || true
-    else
-      fail "Docker não encontrado e curl indisponível para get.docker.com."
-    fi
+  if command -v telegraf >/dev/null 2>&1 || [[ -x /usr/bin/telegraf ]]; then
+    say "Telegraf nativo instalado."
+    return 0
   fi
 
-  if ! command -v docker >/dev/null 2>&1; then
-    fail "Falha a instalar Docker Engine."
-  fi
-
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl enable docker >/dev/null 2>&1 || true
-    systemctl start docker >/dev/null 2>&1 || systemctl restart docker >/dev/null 2>&1 || true
-  fi
-
-  local i=0
-  while [[ "$i" -lt 15 ]]; do
-    docker info >/dev/null 2>&1 && break
-    i=$((i + 1))
-    sleep 2
-  done
-  docker info >/dev/null 2>&1 || fail "Docker instalado mas o daemon não responde (docker info)."
-  say "Docker Engine pronto."
+  say "AVISO: Telegraf não ficou instalado. O acesso SSH pode ser registado na mesma; instale o pacote telegraf e volte a Validar no Console."
+  return 1
 }
 
-ensure_docker
+ensure_telegraf || true
 
 # --- Utilizador e permissões ---
 id "$SERVICE_USER" &>/dev/null || useradd --system --create-home --shell /bin/bash "$SERVICE_USER"
-mkdir -p "$CONFIG_DIR" "$KEY_DIR"
+mkdir -p "$CONFIG_DIR" "$KEY_DIR" /opt/oms
 chown -R "$SERVICE_USER:$SERVICE_USER" /opt/oms
-getent group docker >/dev/null 2>&1 || groupadd docker
-usermod -aG docker "$SERVICE_USER" 2>/dev/null || true
+chown -R "$SERVICE_USER:$SERVICE_USER" "$CONFIG_DIR"
 
 HOME_DIR="$(getent passwd "$SERVICE_USER" | cut -d: -f6)"
 SSH_DIR="$HOME_DIR/.ssh"
@@ -225,12 +196,12 @@ resolve_auth_mode() {
 
 resolve_auth_mode
 
-# --- Sudo NOPASSWD para remediação OMS (Ansible become: systemctl / reboot) ---
+# --- Sudo NOPASSWD para remediação OMS (systemctl + unit oms-telegraf) ---
 SUDOERS_FILE="/etc/sudoers.d/oms-${SERVICE_USER}-remediation"
 # shellcheck disable=SC2086
 printf '%s\n' \
-  "# OMS remediation (playbooks become)" \
-  "${SERVICE_USER} ALL=(root) NOPASSWD: /bin/systemctl, /usr/bin/systemctl, /sbin/reboot, /usr/sbin/reboot, /sbin/shutdown, /usr/sbin/shutdown" \
+  "# OMS remediation (systemctl + unit file)" \
+  "${SERVICE_USER} ALL=(root) NOPASSWD: /bin/systemctl, /usr/bin/systemctl, /sbin/reboot, /usr/sbin/reboot, /sbin/shutdown, /usr/sbin/shutdown, /usr/bin/tee /etc/systemd/system/oms-telegraf.service, /bin/tee /etc/systemd/system/oms-telegraf.service" \
   > "$SUDOERS_FILE"
 chmod 440 "$SUDOERS_FILE"
 if ! visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1; then
@@ -240,10 +211,10 @@ fi
 say "OK: sudo NOPASSWD de remediação em $SUDOERS_FILE"
 
 # Validação rápida
-if sudo -u "$SERVICE_USER" docker info >/dev/null 2>&1; then
-  say "OK: $SERVICE_USER pode usar Docker."
+if command -v telegraf >/dev/null 2>&1 || [[ -x /usr/bin/telegraf ]]; then
+  say "OK: binário telegraf presente."
 else
-  say "AVISO: $SERVICE_USER ainda não consegue «docker info» — pode precisar de nova sessão SSH."
+  say "AVISO: telegraf ainda em falta — o Console pode registar o acesso SSH; instale o pacote e volte a Validar."
 fi
 if sudo -u "$SERVICE_USER" test -w "$CONFIG_DIR" 2>/dev/null; then
   say "OK: $SERVICE_USER pode escrever em $CONFIG_DIR."
@@ -258,3 +229,4 @@ else
 fi
 
 say "Concluído. No Oramix Console use utilizador «$SERVICE_USER», porta SSH 22 e a chave PEM privada."
+say "O CustomerAgent aplica a config e o serviço oms-telegraf (Telegraf nativo — sem Docker)."
