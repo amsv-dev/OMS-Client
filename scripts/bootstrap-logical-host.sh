@@ -67,19 +67,32 @@ ensure_docker() {
 
   say "A instalar Docker Engine (necessário para oms-logical-telegraf)…"
   export DEBIAN_FRONTEND=noninteractive
+
+  local net_ok=0
+  if command -v curl >/dev/null 2>&1; then
+    timeout 8 curl -fsI https://archive.ubuntu.com >/dev/null 2>&1 && net_ok=1 || true
+    timeout 8 curl -fsI https://get.docker.com >/dev/null 2>&1 && net_ok=1 || true
+  fi
+
   if command -v apt-get >/dev/null 2>&1; then
-    apt-get update -qq
-    apt-get install -y -qq docker.io || apt-get install -y -qq docker-ce || true
+    if ! timeout 90 apt-get update -qq; then
+      fail "apt-get update falhou/timeout. Esta VM precisa de Internet/proxy para os repositórios, ou instale docker.io offline (sudo apt-get install -y docker.io)."
+    fi
+    timeout 240 apt-get install -y -qq docker.io || timeout 240 apt-get install -y -qq docker-ce || true
   elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y docker 2>/dev/null || dnf install -y docker-ce 2>/dev/null || true
+    timeout 240 dnf install -y docker 2>/dev/null || timeout 240 dnf install -y docker-ce 2>/dev/null || true
   elif command -v yum >/dev/null 2>&1; then
-    yum install -y docker 2>/dev/null || true
+    timeout 240 yum install -y docker 2>/dev/null || true
   fi
 
   if ! command -v docker >/dev/null 2>&1; then
+    if [[ "$net_ok" -eq 0 ]]; then
+      fail "Sem Internet na VM (HTTPS archive.ubuntu.com / get.docker.com). Instale Docker manualmente: sudo apt-get install -y docker.io"
+    fi
     if command -v curl >/dev/null 2>&1; then
       say "Fallback: get.docker.com…"
-      curl -fsSL https://get.docker.com | sh
+      timeout 120 curl -fsSL https://get.docker.com -o /tmp/oms-get-docker.sh || fail "Download get.docker.com falhou."
+      timeout 300 sh /tmp/oms-get-docker.sh || true
     else
       fail "Docker não encontrado e curl indisponível para get.docker.com."
     fi
