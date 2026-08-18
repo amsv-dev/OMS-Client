@@ -69,7 +69,7 @@ ensure_telegraf() {
   export DEBIAN_FRONTEND=noninteractive
 
   if command -v apt-get >/dev/null 2>&1; then
-    if ! timeout 90 apt-get update -qq; then
+    if ! timeout 15 apt-get update -qq; then
       say "AVISO: apt-get update falhou/timeout. Sem Internet/proxy, instale telegraf offline e volte a correr este script."
       return 1
     fi
