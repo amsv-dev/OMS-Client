@@ -108,6 +108,18 @@ if ! grep -qE '^SERVICE_LIMIT_SCOPE=.+' "$ENV_FILE" 2>/dev/null; then
   echo "SERVICE_LIMIT_SCOPE=total" >> "$ENV_FILE"
 fi
 
+# Allowlist de measurements vive no docker-compose.yml (default da imagem/repo).
+# Installs antigos gravaram no .env nomes exactos (sqlserver, oracle) que nao
+# batem com sqlserver_performance / oracle_database. Se o .env ainda tem esse
+# default de produto antigo, remove-o para o compose voltar a mandar.
+CURRENT_ALLOWED="$(grep -E '^METRICS_ALLOWED_MEASUREMENTS=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
+case "$CURRENT_ALLOWED" in
+  'cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver'|'cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver,oracle')
+    sed -i '/^METRICS_ALLOWED_MEASUREMENTS=/d' "$ENV_FILE"
+    echo "[update] METRICS_ALLOWED_MEASUREMENTS antigo removido do .env — passa a valer o default do compose."
+    ;;
+esac
+
 SOLACE_HOST="${SOLACE__HOST:-$SOLACE_HOST}"
 if [[ -z "$SOLACE_HOST" ]]; then
   echo "[update] SOLACE__HOST nao definido. Skip correcao LOKI_URL."
