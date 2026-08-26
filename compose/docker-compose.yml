@@ -149,7 +149,7 @@ services:
       - SOLACE__USERNAME=${SOLACE__USERNAME:-default}
       - SOLACE__PASSWORD=${SOLACE__PASSWORD:-default}
       - METRICS_TOPIC_PREFIX=${METRICS_TOPIC_PREFIX:-oms.metrics.frames}
-      - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver}
+      - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,postgresql_database,mysql,mysql_database,sqlserver_*,oracle,oracle_database,oms_*}
       - CENTRAL_API_URL=${CENTRAL_API_URL:-}
       - CONSOLE_TOKEN=${CONSOLE_TOKEN:-}
       - CONSOLE_TOKEN_FILE=${CONSOLE_TOKEN_FILE:-/app/secrets/console-token.txt}
