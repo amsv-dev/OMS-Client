@@ -31,7 +31,7 @@ CONSOLE_API_URL=$CloudUrl
 RUNTIME_ASSET_ID=$RuntimeAssetId
 TENANT_ID=
 CUSTOMER_ID=
-OBSERVABILITY_MODE=centralized-runtime
+OBSERVABILITY_MODE=distributed-logical-hosts
 "@
 Set-Content -Path ".\compose\.env" -Value $envContent -Encoding UTF8
 
