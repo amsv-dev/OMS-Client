@@ -291,27 +291,25 @@ COLLECTOR_AUTO_SCALE_ENABLED="$(extract "observabilityPolicy.collectorAutoScaleE
 # Usar apiUrl da resposta se disponível
 [[ -n "$RESPONSE_API_URL" ]] && API_URL="${RESPONSE_API_URL%/}"
 
-OBSERVABILITY_MODE="${OBSERVABILITY_MODE:-centralized-runtime}"
+OBSERVABILITY_MODE="distributed-logical-hosts"
 MAX_SERVICES="${MAX_SERVICES:-25}"
 SERVICE_LIMIT_SCOPE="${SERVICE_LIMIT_SCOPE:-total}"
-COLLECTOR_PLACEMENT_STRATEGY="${COLLECTOR_PLACEMENT_STRATEGY:-runtime-host}"
+COLLECTOR_PLACEMENT_STRATEGY="per-host-group"
 COLLECTOR_AUTO_SCALE_ENABLED=false
 
-if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
-  if [[ -n "$LOGICAL_HOST_IP" ]]; then
-    LOGICAL_HOST_INFLUX_URL="http://${LOGICAL_HOST_IP}:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
-  fi
-  if [[ -z "$LOGICAL_HOST_INFLUX_URL" ]]; then
-    RUNTIME_LAN_IP="$(detect_runtime_lan_ip "$API_URL")"
-    if [[ -z "$RUNTIME_LAN_IP" ]]; then
-      echo "[erro] Não foi possível detetar IP LAN do runtime para LOGICAL_HOST_INFLUX_URL. Defina LOGICAL_HOST_INFLUX_URL ou --logical-host-ip." >&2
-      exit 1
-    fi
-    LOGICAL_HOST_INFLUX_URL="http://${RUNTIME_LAN_IP}:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
-  fi
-  echo "[install] LOGICAL_HOST_INFLUX_URL=${LOGICAL_HOST_INFLUX_URL}"
-  echo "[install] Modo distributed-logical-hosts: credenciais SSH (PEM) via Oramix Console (Cofre), não no .env." >&2
+if [[ -n "$LOGICAL_HOST_IP" ]]; then
+  LOGICAL_HOST_INFLUX_URL="http://${LOGICAL_HOST_IP}:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
 fi
+if [[ -z "$LOGICAL_HOST_INFLUX_URL" ]]; then
+  RUNTIME_LAN_IP="$(detect_runtime_lan_ip "$API_URL")"
+  if [[ -z "$RUNTIME_LAN_IP" ]]; then
+    echo "[erro] Não foi possível detetar IP LAN do runtime para LOGICAL_HOST_INFLUX_URL. Defina LOGICAL_HOST_INFLUX_URL ou --logical-host-ip." >&2
+    exit 1
+  fi
+  LOGICAL_HOST_INFLUX_URL="http://${RUNTIME_LAN_IP}:${CLIENT_INFLUXDB_HTTP_PORT:-8087}"
+fi
+echo "[install] LOGICAL_HOST_INFLUX_URL=${LOGICAL_HOST_INFLUX_URL}"
+echo "[install] Telegraf em cada host lógico: credenciais SSH (PEM) via Oramix Console (Cofre), não no .env." >&2
 
 if [[ -z "$TENANT_ID" ]] || [[ -z "$ASSET_ID" ]]; then
   echo "[erro] Resposta inválida da API. Token pode estar expirado." >&2
@@ -719,6 +717,4 @@ echo "[install] Oramix Console (UI): http://${CLIENT_IP:-localhost}:${ORAMIX_CON
 echo "[install] Proximo passo: abrir o Console e concluir o wizard do Vault (init/unseal + backup das keys)."
 echo "[install] (CLI opcional, 1x): bash scripts/vault-ops.sh bootstrap"
 echo "[install] Tenant: ${TENANT_NAME:-$TENANT_ID} ($TENANT_ID) | Asset: ${RUNTIME_ASSET_NAME:-$ASSET_ID} ($ASSET_ID)"
-if [[ "$OBSERVABILITY_MODE" == "distributed-logical-hosts" ]]; then
-  echo "[install] Modo distributed-logical-hosts: registe credenciais SSH no Oramix Console (Vault → Hosts)."
-fi
+echo "[install] Telegraf em cada host: registe credenciais SSH no Oramix Console (Vault → Hosts)."

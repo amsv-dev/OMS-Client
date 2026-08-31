@@ -1,8 +1,6 @@
-# Logical assets collectors
+# Telegraf no runtime (métricas da VM OMS)
 
-Este diretório é gerido automaticamente pelo `LogicalAssetReconcilerService` do `customer-agent`.
+O `client-telegraf` mede CPU/mem/disco **desta** VM. Plugins de BD e SO remoto correm no `oms-telegraf` de cada host lógico (ADR-018).
 
 - Não guardar passwords neste diretório.
-- Guardar apenas configuração de collector e tags V2 por logical asset.
-- Segredos reais devem ficar em `client/compose/secrets/logical-secret-store.json`.
-- Ficheiros `oms-logical-*.conf` são reconciliados por desired state vindo da central.
+- Não deixar snippets `oms-service-*.conf` / `oms-logical-*.conf` de BD em `dynamic/runtime/` — o reconciler apaga-os.
