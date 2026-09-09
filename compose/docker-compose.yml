@@ -87,6 +87,8 @@ services:
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - ./telegraf/dynamic/runtime:/etc/telegraf/telegraf.d:ro
+      # Linux paths: na Windows Server o runtime só é suportado com Docker Linux containers
+      # (medem a VM Linux do Docker, não o SO Windows — ADR-006).
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc:/host/etc:ro
@@ -149,7 +151,7 @@ services:
       - SOLACE__USERNAME=${SOLACE__USERNAME:-default}
       - SOLACE__PASSWORD=${SOLACE__PASSWORD:-default}
       - METRICS_TOPIC_PREFIX=${METRICS_TOPIC_PREFIX:-oms.metrics.frames}
-      - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,postgresql_database,mysql,mysql_database,sqlserver_*,oracle,oracle_database,oms_*}
+      - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,postgresql_database,mysql,mysql_database,sqlserver_*,oracle,oracle_database,oms_*,win_*}
       - CENTRAL_API_URL=${CENTRAL_API_URL:-}
       - CONSOLE_TOKEN=${CONSOLE_TOKEN:-}
       - CONSOLE_TOKEN_FILE=${CONSOLE_TOKEN_FILE:-/app/secrets/console-token.txt}

@@ -114,11 +114,22 @@ fi
 # default de produto antigo, remove-o para o compose voltar a mandar.
 CURRENT_ALLOWED="$(grep -E '^METRICS_ALLOWED_MEASUREMENTS=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
 case "$CURRENT_ALLOWED" in
-  'cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver'|'cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver,oracle')
+  'cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver'|'cpu,mem,disk,diskio,system,net,processes,postgresql,mysql,sqlserver,oracle'|'cpu,mem,disk,diskio,system,net,processes,postgresql,postgresql_database,mysql,mysql_database,sqlserver_*,oracle,oracle_database,oms_*')
     sed -i '/^METRICS_ALLOWED_MEASUREMENTS=/d' "$ENV_FILE"
-    echo "[update] METRICS_ALLOWED_MEASUREMENTS antigo removido do .env — passa a valer o default do compose."
+    echo "[update] METRICS_ALLOWED_MEASUREMENTS antigo removido do .env — passa a valer o default do compose (inclui win_*)."
+    CURRENT_ALLOWED=""
     ;;
 esac
+# Custom pin without win_*: Windows logical-host OS metrics never reach Central.
+if [[ -n "$CURRENT_ALLOWED" && "$CURRENT_ALLOWED" != "*" && "$CURRENT_ALLOWED" != *win_* ]]; then
+  NEW_ALLOWED="${CURRENT_ALLOWED},win_*"
+  if grep -qE '^METRICS_ALLOWED_MEASUREMENTS=' "$ENV_FILE"; then
+    sed -i "s|^METRICS_ALLOWED_MEASUREMENTS=.*|METRICS_ALLOWED_MEASUREMENTS=${NEW_ALLOWED}|" "$ENV_FILE"
+  else
+    echo "METRICS_ALLOWED_MEASUREMENTS=${NEW_ALLOWED}" >> "$ENV_FILE"
+  fi
+  echo "[update] METRICS_ALLOWED_MEASUREMENTS: acrescentado win_* (hosts lógicos Windows)."
+fi
 
 SOLACE_HOST="${SOLACE__HOST:-$SOLACE_HOST}"
 if [[ -z "$SOLACE_HOST" ]]; then

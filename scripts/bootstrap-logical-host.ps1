@@ -1,5 +1,6 @@
-# Preparar Windows Server (bases de dados) para modo distributed-logical-hosts.
+﻿# Preparar Windows Server (bases de dados) para modo distributed-logical-hosts.
 # Autenticação SSH exclusiva por chave PEM (OpenSSH Server).
+# Encoding: UTF-8 with BOM (Windows PowerShell 5.1 cannot parse UTF-8 without BOM).
 #Requires -Version 5.1
 param(
     [string]$ServiceUser = "oms-telegraf",
@@ -65,6 +66,72 @@ function Ensure-ServiceUser {
     }
 }
 
+# Pin to the same Telegraf 1.38.4 line as TelegrafNativePackage (Linux .deb is 1.38.4-1).
+# InfluxData does not ship an official Windows MSI; zip + --service install is the documented path.
+$TelegrafWindowsVersion = "1.38.4"
+$TelegrafWindowsZipName = "telegraf-${TelegrafWindowsVersion}_windows_amd64.zip"
+$TelegrafWindowsZipUrl = "https://dl.influxdata.com/telegraf/releases/$TelegrafWindowsZipName"
+$TelegrafWindowsZipSha256 = "6c7878ec319471ac85b82443baec2f3fa5dbcf1b6e2da5d5cd2cbb60fff2bb45"
+
+function Install-TelegrafNative {
+    $existing = Get-Service -Name telegraf -ErrorAction SilentlyContinue
+    if ($existing) {
+        Write-Status "Serviço telegraf já existe ($($existing.Status))."
+        if ($existing.StartType -ne "Automatic") {
+            Set-Service -Name telegraf -StartupType Automatic
+        }
+        if ($existing.Status -ne "Running") {
+            Start-Service telegraf
+            Write-Status "Serviço telegraf iniciado."
+        }
+        return
+    }
+
+    Write-Status "A instalar Telegraf $TelegrafWindowsVersion (zip oficial, pasta $InstallDir)..."
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $zipPath = Join-Path $env:TEMP $TelegrafWindowsZipName
+    Invoke-WebRequest -Uri $TelegrafWindowsZipUrl -OutFile $zipPath -UseBasicParsing
+    $actualHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $TelegrafWindowsZipSha256) {
+        Write-ErrorStatus "SHA256 do zip Telegraf não confere (esperado $TelegrafWindowsZipSha256, obtido $actualHash)."
+        exit 1
+    }
+
+    $extractRoot = Join-Path $env:TEMP "oms-telegraf-extract"
+    if (Test-Path -LiteralPath $extractRoot) {
+        Remove-Item -LiteralPath $extractRoot -Recurse -Force
+    }
+    Expand-Archive -LiteralPath $zipPath -DestinationPath $extractRoot -Force
+    $exe = Get-ChildItem -LiteralPath $extractRoot -Filter "telegraf.exe" -Recurse | Select-Object -First 1
+    if (-not $exe) {
+        Write-ErrorStatus "telegraf.exe não encontrado no zip."
+        exit 1
+    }
+
+    if (-not (Test-Path -LiteralPath $InstallDir)) {
+        New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+    }
+    Copy-Item -LiteralPath $exe.FullName -Destination (Join-Path $InstallDir "telegraf.exe") -Force
+    $defaultConf = Join-Path $exe.DirectoryName "telegraf.conf"
+    $destConf = Join-Path $InstallDir "telegraf.conf"
+    if ((Test-Path -LiteralPath $defaultConf) -and -not (Test-Path -LiteralPath $destConf)) {
+        Copy-Item -LiteralPath $defaultConf -Destination $destConf -Force
+    }
+    if (-not (Test-Path -LiteralPath $destConf)) {
+        Set-Content -LiteralPath $destConf -Value "# Placeholder until OMS customer-agent provisions telegraf.conf`r`n[agent]`r`n  interval = `"30s`"`r`n" -Encoding ASCII
+    }
+
+    $telegrafExe = Join-Path $InstallDir "telegraf.exe"
+    & $telegrafExe --service install --config $destConf
+    if ($LASTEXITCODE -ne 0) {
+        Write-ErrorStatus "Falha ao registar o serviço Windows telegraf."
+        exit 1
+    }
+    Set-Service -Name telegraf -StartupType Automatic
+    Start-Service telegraf
+    Write-Status "Telegraf $TelegrafWindowsVersion instalado e serviço a arrancar."
+}
+
 function Set-InstallDirAcl {
     if (-not (Test-Path -LiteralPath $InstallDir)) {
         New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
@@ -100,7 +167,7 @@ function Install-AuthorizedKeyLine {
     } else {
         Write-Status "Chave pública já presente em authorized_keys."
     }
-    icacls $sshDir /inheritance:r /grant "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" "$ServiceUser:(OI)(CI)F" | Out-Null
+    icacls $sshDir /inheritance:r /grant "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" "${ServiceUser}:(OI)(CI)F" | Out-Null
 }
 
 function Show-PrivateKeyBanner {
@@ -108,7 +175,7 @@ function Show-PrivateKeyBanner {
     Write-Status ""
     Write-Status "======== COLE ESTA CHAVE PRIVADA NO ASSESSMENT (passo Acesso à máquina) ========"
     Get-Content -LiteralPath $PrivateKeyPath -Raw
-    Write-Status "======== FIM DA CHAVE PRIVADA — guarde em local seguro ========"
+    Write-Status "======== FIM DA CHAVE PRIVADA - guarde em local seguro ========"
     Write-Status ""
 }
 
@@ -164,12 +231,6 @@ if ($GenerateKeypair) {
     }
 }
 
-$telegrafSvc = Get-Service -Name telegraf -ErrorAction SilentlyContinue
-if ($telegrafSvc) {
-    Write-Status "Serviço telegraf encontrado ($($telegrafSvc.Status))."
-} else {
-    Write-Status "AVISO: serviço telegraf não instalado. Instale antes de registar no Oramix Console."
-    Write-Status "  https://docs.influxdata.com/telegraf/v1/install/"
-}
+Install-TelegrafNative
 
-Write-Status "Concluído. No Oramix Console: utilizador «$ServiceUser», porta SSH 22, chave PEM privada."
+Write-Status "Concluido. No Oramix Console: utilizador '$ServiceUser', porta SSH 22, chave PEM privada."
