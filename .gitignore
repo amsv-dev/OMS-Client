@@ -1,0 +1,9 @@
+# Runtime credentials are minted on each install (fresh Vault, AppRole, console token).
+# Do not commit them. Safe to track: docs, *.example templates, and .gitkeep placeholders.
+compose/.env
+
+compose/secrets/**
+!compose/secrets/**/
+!compose/secrets/**/.gitkeep
+!compose/secrets/**/*.example
+!compose/secrets/vault/README.md
