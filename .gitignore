@@ -7,3 +7,14 @@ compose/secrets/**
 !compose/secrets/**/.gitkeep
 !compose/secrets/**/*.example
 !compose/secrets/vault/README.md
+
+# oms-sync: do not publish compose/secrets runtime material
+# Allowlist: README.md, *.example, .gitkeep. Managed by OMSv2 deploy-client.
+compose/secrets/**
+!compose/secrets/**/
+!compose/secrets/README.md
+!compose/secrets/*.example
+!compose/secrets/.gitkeep
+!compose/secrets/**/README.md
+!compose/secrets/**/*.example
+!compose/secrets/**/.gitkeep
