@@ -83,12 +83,21 @@ if docker ps --format '{{.Names}}' | grep -qx client-influxdb; then
     echo "[smoke][erro] INFLUXDB_LOCAL_TOKEN ausente em $ENV_FILE" >&2
     fail=1
   else
-    influx_code="$(
-      curl -sS -m 5 -o /tmp/oms-smoke-influx.json -w '%{http_code}' \
-        -H "Authorization: Token ${INFLUX_TOKEN}" \
-        "http://127.0.0.1:${INFLUX_PORT}/api/v2/buckets?org=${INFLUX_ORG}" \
-        2>/dev/null || echo 000
-    )"
+    influx_body="/tmp/oms-smoke-influx.json"
+    if command -v cygpath >/dev/null 2>&1; then
+      influx_body="$(cygpath -w "$influx_body")"
+    fi
+    influx_code="000"
+    for _ in $(seq 1 15); do
+      influx_code="$(
+        curl -sS -m 5 -o "$influx_body" -w '%{http_code}' \
+          -H "Authorization: Token ${INFLUX_TOKEN}" \
+          "http://127.0.0.1:${INFLUX_PORT}/api/v2/buckets?org=${INFLUX_ORG}" \
+          2>/dev/null || echo 000
+      )"
+      [[ "$influx_code" == "200" ]] && break
+      sleep 2
+    done
     if [[ "$influx_code" == "200" ]]; then
       echo "[smoke] OK Influx auth."
     else
@@ -150,7 +159,13 @@ else
 fi
 
 # Console HTTP (nginx) — resposta qualquer < 500
-console_code="$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${CONSOLE_PORT}/" 2>/dev/null || echo 000)"
+console_sink="/dev/null"
+if command -v cygpath >/dev/null 2>&1; then
+  console_sink="NUL"
+fi
+console_code="$(curl -sS -m 5 -o "$console_sink" -w '%{http_code}' "http://127.0.0.1:${CONSOLE_PORT}/" 2>/dev/null || true)"
+[[ "$console_code" =~ ^[0-9]{3} ]] || console_code="000"
+console_code="${console_code:0:3}"
 if [[ "$console_code" =~ ^[23] ]]; then
   echo "[smoke] OK oramix-console HTTP $console_code."
 else

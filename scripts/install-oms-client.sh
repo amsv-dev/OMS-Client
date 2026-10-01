@@ -44,7 +44,9 @@ Exemplo:
   bash install-oms-client.sh <TOKEN> http://<central>:5000 --site-code site1
 
 A Central devolve: bundle (tenantId, assetId), Solace. O client só precisa do token.
-O install força pull das imagens do runtime antes de arrancar o compose.
+O install faz pull das imagens do runtime antes de arrancar o compose.
+OMS_SKIP_IMAGE_PULL=1 salta o pull (lab local com imagens já construídas). Nas VMs o pull mantém-se.
+Se a Central não devolver Solace, usa SOLACE_HOST / SOLACE_PASSWORD do ambiente antes de pedir no terminal.
 EOF
 }
 
@@ -54,6 +56,15 @@ require_env_value() {
   if [[ -z "$value" ]]; then
     echo "[erro] ${key} em falta na configuração. Abortar para evitar runtime incompleto." >&2
     exit 1
+  fi
+}
+
+# curl do Git for Windows é MinGW: não escreve em /tmp do MSYS.
+host_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    printf '%s' "$1"
   fi
 }
 
@@ -251,22 +262,63 @@ VALIDATE_URL="${API_URL}/api/console/validate"
 RESPONSE="$(curl -fsS -H "X-Tenant-Token: $TOKEN" "$VALIDATE_URL")"
 
 # Extrair campos do JSON (python3 ou jq)
-extract() {
-  local key="$1"
-  if command -v jq &>/dev/null; then
-    echo "$RESPONSE" | jq -r ".${key} // empty"
-  else
-    echo "$RESPONSE" | python3 -c "
+extract_py() {
+  local py="$1"
+  local key="$2"
+  printf '%s' "$RESPONSE" | "$py" -c "
 import json,sys
 d=json.load(sys.stdin)
-keys='${key}'.split('.')
+keys=sys.argv[1].split('.')
 v=d
 for k in keys:
   v=v.get(k) if isinstance(v,dict) else None
   if v is None: break
-print(v or '')
-" 2>/dev/null || echo ""
+sys.stdout.write('' if v is None else str(v))
+" "$key" 2>/dev/null || true
+}
+
+extract_node() {
+  local key="$1"
+  printf '%s' "$RESPONSE" | OMS_JSON_KEY="$key" node -e '
+let s="";
+process.stdin.on("data", (d) => { s += d; });
+process.stdin.on("end", () => {
+  const d = JSON.parse(s);
+  let v = d;
+  for (const k of String(process.env.OMS_JSON_KEY || "").split(".")) {
+    v = v && typeof v === "object" ? v[k] : undefined;
+  }
+  process.stdout.write(v == null ? "" : String(v));
+});
+' 2>/dev/null || true
+}
+
+extract() {
+  local key="$1"
+  local value=""
+  if [[ -z "${_OMS_JSON_TOOL:-}" ]]; then
+    if command -v jq >/dev/null 2>&1; then
+      _OMS_JSON_TOOL=jq
+    elif python3 -c 'import json' >/dev/null 2>&1; then
+      _OMS_JSON_TOOL=python3
+    elif python -c 'import json' >/dev/null 2>&1; then
+      _OMS_JSON_TOOL=python
+    elif command -v node >/dev/null 2>&1; then
+      _OMS_JSON_TOOL=node
+    else
+      _OMS_JSON_TOOL=none
+    fi
   fi
+  case "$_OMS_JSON_TOOL" in
+    jq) value="$(printf '%s' "$RESPONSE" | jq -r ".${key} // empty" 2>/dev/null || true)" ;;
+    python3) value="$(extract_py python3 "$key")" ;;
+    python) value="$(extract_py python "$key")" ;;
+    node) value="$(extract_node "$key")" ;;
+  esac
+  if [[ "$value" == "null" ]]; then
+    value=""
+  fi
+  printf '%s' "$value"
 }
 
 TENANT_ID="$(extract "runtimeIdentity.tenantId")"
@@ -278,9 +330,16 @@ EXPIRES_AT="$(extract "runtimeIdentity.expiresAtUtc")"
 NONCE="$(extract "runtimeIdentity.nonce")"
 SIGNATURE="$(extract "runtimeIdentity.signature")"
 SITE_CODE="$(extract "runtimeIdentity.siteCode")"
+_SOLACE_HOST_ENV="${SOLACE_HOST:-}"
+_SOLACE_USERNAME_ENV="${SOLACE_USERNAME:-}"
+_SOLACE_PASSWORD_ENV="${SOLACE_PASSWORD:-}"
 SOLACE_HOST="$(extract "solace.host")"
 SOLACE_USERNAME="$(extract "solace.username")"
 SOLACE_PASSWORD="$(extract "solace.password")"
+[[ -z "$SOLACE_HOST" && -n "$_SOLACE_HOST_ENV" ]] && SOLACE_HOST="$_SOLACE_HOST_ENV"
+[[ -z "$SOLACE_USERNAME" && -n "$_SOLACE_USERNAME_ENV" ]] && SOLACE_USERNAME="$_SOLACE_USERNAME_ENV"
+[[ -z "$SOLACE_PASSWORD" && -n "$_SOLACE_PASSWORD_ENV" ]] && SOLACE_PASSWORD="$_SOLACE_PASSWORD_ENV"
+unset _SOLACE_HOST_ENV _SOLACE_USERNAME_ENV _SOLACE_PASSWORD_ENV
 RESPONSE_API_URL="$(extract "apiUrl")"
 OBSERVABILITY_MODE="$(extract "observabilityPolicy.mode")"
 MAX_SERVICES="$(extract "observabilityPolicy.maxServices")"
@@ -356,7 +415,7 @@ if command -v jq >/dev/null 2>&1; then
       assetName: $hostname,
       instanceLabel: $hostname
     }')"
-elif command -v python3 >/dev/null 2>&1; then
+elif python3 -c 'import json' >/dev/null 2>&1; then
   VALIDATE_PAYLOAD="$(python3 - <<PY
 import json
 payload = {
@@ -381,11 +440,49 @@ payload = {
 print(json.dumps(payload))
 PY
 )"
+elif command -v node >/dev/null 2>&1; then
+  VALIDATE_PAYLOAD="$(
+    INSTALL_JSON_MODE=validate \
+    INSTALL_JSON_TOKEN="$TOKEN" \
+    INSTALL_JSON_TENANT="$TENANT_ID" \
+    INSTALL_JSON_ASSET="$ASSET_ID" \
+    INSTALL_JSON_SITE="${SITE_CODE:-}" \
+    INSTALL_JSON_ISSUED="$ISSUED_AT" \
+    INSTALL_JSON_EXPIRES="$EXPIRES_AT" \
+    INSTALL_JSON_NONCE="$NONCE" \
+    INSTALL_JSON_SIGNATURE="$SIGNATURE" \
+    INSTALL_JSON_HOSTNAME="$HOSTNAME_SHORT" \
+    INSTALL_JSON_ADDRESS="$HOST_IP" \
+    node -e '
+const activate = process.env.INSTALL_JSON_MODE === "activate";
+const payload = {
+  consoleToken: process.env.INSTALL_JSON_TOKEN || "",
+  activateRuntime: activate,
+  runtimeHealthStatus: activate ? "active" : "bootstrap-validated",
+  bundle: {
+    tenantId: process.env.INSTALL_JSON_TENANT || "",
+    assetId: process.env.INSTALL_JSON_ASSET || "",
+    siteCode: process.env.INSTALL_JSON_SITE || "",
+    issuedAtUtc: process.env.INSTALL_JSON_ISSUED || "",
+    expiresAtUtc: process.env.INSTALL_JSON_EXPIRES || "",
+    nonce: process.env.INSTALL_JSON_NONCE || "",
+    signatureVersion: "hmac-sha256-v1",
+    signature: process.env.INSTALL_JSON_SIGNATURE || "",
+  },
+  hostname: process.env.INSTALL_JSON_HOSTNAME || "",
+  address: process.env.INSTALL_JSON_ADDRESS || "",
+  assetName: process.env.INSTALL_JSON_HOSTNAME || "",
+  instanceLabel: process.env.INSTALL_JSON_HOSTNAME || "",
+};
+if (activate) payload.runtimeCheckedAtUtc = new Date().toISOString();
+process.stdout.write(JSON.stringify(payload));
+'
+  )"
 else
-  echo "[erro] jq ou python3 é obrigatório para gerar payload JSON de validação." >&2
+  echo "[erro] jq, python3 ou node é obrigatório para gerar payload JSON de validação." >&2
   exit 1
 fi
-VALIDATE_BUNDLE_TMP="$(mktemp)"
+VALIDATE_BUNDLE_TMP="$(host_path "$(mktemp)")"
 HTTP_CODE="$(
   curl -sS \
     -o "$VALIDATE_BUNDLE_TMP" \
@@ -398,7 +495,7 @@ HTTP_CODE="$(
 if [[ "$HTTP_CODE" -lt 200 || "$HTTP_CODE" -ge 300 ]]; then
   if command -v jq >/dev/null 2>&1; then
     ERROR_MESSAGE="$(jq -r '.message // .validationError // empty' "$VALIDATE_BUNDLE_TMP" 2>/dev/null || true)"
-  elif command -v python3 >/dev/null 2>&1; then
+  elif python3 -c 'import json' >/dev/null 2>&1; then
     ERROR_MESSAGE="$(python3 - <<PY 2>/dev/null || true
 import json
 import sys
@@ -409,6 +506,16 @@ except Exception:
     print("")
 PY
 )"
+  elif command -v node >/dev/null 2>&1; then
+    ERROR_MESSAGE="$(INSTALL_JSON_FILE="$VALIDATE_BUNDLE_TMP" node -e '
+const fs = require("fs");
+try {
+  const data = JSON.parse(fs.readFileSync(process.env.INSTALL_JSON_FILE, "utf8"));
+  process.stdout.write(String(data.message || data.validationError || ""));
+} catch (e) {
+  process.stdout.write("");
+}
+')"
   else
     ERROR_MESSAGE=""
   fi
@@ -590,12 +697,16 @@ for required in TENANT_ID ASSET_ID CENTRAL_API_URL CONSOLE_TOKEN; do
   fi
 done
 
-echo "[install] A atualizar imagens do runtime (pull)..."
 cd "$(dirname "$COMPOSE_DIR")"
-docker compose -p "${OMS_COMPOSE_PROJECT_NAME:-compose}" -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$COMPOSE_DIR/.env" pull
+if [[ "${OMS_SKIP_IMAGE_PULL:-}" == "1" ]]; then
+  echo "[install] OMS_SKIP_IMAGE_PULL=1 — sem pull (imagens locais)."
+else
+  echo "[install] A atualizar imagens do runtime (pull)..."
+  docker compose -p "${OMS_COMPOSE_PROJECT_NAME:-compose}" -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$(host_path "$COMPOSE_DIR/.env")" pull
+fi
 
 echo "[install] A arrancar stack..."
-docker compose -p "${OMS_COMPOSE_PROJECT_NAME:-compose}" -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$COMPOSE_DIR/.env" up -d --remove-orphans
+docker compose -p "${OMS_COMPOSE_PROJECT_NAME:-compose}" -f "$(basename "$COMPOSE_DIR")/docker-compose.yml" --env-file "$(host_path "$COMPOSE_DIR/.env")" up -d --remove-orphans
 
 # Verificação runtime: customer-agent deve receber token e URL central já no container
 runtime_env_dump="$(docker inspect client-customer-agent --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
@@ -656,7 +767,7 @@ if command -v jq >/dev/null 2>&1; then
       assetName: $hostname,
       instanceLabel: $hostname
     }')"
-elif command -v python3 >/dev/null 2>&1; then
+elif python3 -c 'import json' >/dev/null 2>&1; then
   ACTIVATE_PAYLOAD="$(python3 - <<PY
 import json
 from datetime import datetime, timezone
@@ -683,12 +794,50 @@ payload = {
 print(json.dumps(payload))
 PY
 )"
+elif command -v node >/dev/null 2>&1; then
+  ACTIVATE_PAYLOAD="$(
+    INSTALL_JSON_MODE=activate \
+    INSTALL_JSON_TOKEN="$TOKEN" \
+    INSTALL_JSON_TENANT="$TENANT_ID" \
+    INSTALL_JSON_ASSET="$ASSET_ID" \
+    INSTALL_JSON_SITE="${SITE_CODE:-}" \
+    INSTALL_JSON_ISSUED="$ISSUED_AT" \
+    INSTALL_JSON_EXPIRES="$EXPIRES_AT" \
+    INSTALL_JSON_NONCE="$NONCE" \
+    INSTALL_JSON_SIGNATURE="$SIGNATURE" \
+    INSTALL_JSON_HOSTNAME="$HOSTNAME_SHORT" \
+    INSTALL_JSON_ADDRESS="$HOST_IP" \
+    node -e '
+const activate = process.env.INSTALL_JSON_MODE === "activate";
+const payload = {
+  consoleToken: process.env.INSTALL_JSON_TOKEN || "",
+  activateRuntime: activate,
+  runtimeHealthStatus: activate ? "active" : "bootstrap-validated",
+  bundle: {
+    tenantId: process.env.INSTALL_JSON_TENANT || "",
+    assetId: process.env.INSTALL_JSON_ASSET || "",
+    siteCode: process.env.INSTALL_JSON_SITE || "",
+    issuedAtUtc: process.env.INSTALL_JSON_ISSUED || "",
+    expiresAtUtc: process.env.INSTALL_JSON_EXPIRES || "",
+    nonce: process.env.INSTALL_JSON_NONCE || "",
+    signatureVersion: "hmac-sha256-v1",
+    signature: process.env.INSTALL_JSON_SIGNATURE || "",
+  },
+  hostname: process.env.INSTALL_JSON_HOSTNAME || "",
+  address: process.env.INSTALL_JSON_ADDRESS || "",
+  assetName: process.env.INSTALL_JSON_HOSTNAME || "",
+  instanceLabel: process.env.INSTALL_JSON_HOSTNAME || "",
+};
+if (activate) payload.runtimeCheckedAtUtc = new Date().toISOString();
+process.stdout.write(JSON.stringify(payload));
+'
+  )"
 else
-  echo "[erro] jq ou python3 é obrigatório para gerar payload JSON de ativação." >&2
+  echo "[erro] jq, python3 ou node é obrigatório para gerar payload JSON de ativação." >&2
   exit 1
 fi
 
-ACTIVATE_TMP="$(mktemp)"
+ACTIVATE_TMP="$(host_path "$(mktemp)")"
 ACTIVATE_HTTP_CODE="$(
   curl -sS \
     -o "$ACTIVATE_TMP" \
@@ -711,7 +860,7 @@ fi
 rm -f "$ACTIVATE_TMP"
 
 ORAMIX_CONSOLE_PORT="${CLIENT_ORAMIX_CONSOLE_HTTP_PORT:-3122}"
-CLIENT_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+CLIENT_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
 echo "[install] Concluído."
 echo "[install] Oramix Console (UI): http://${CLIENT_IP:-localhost}:${ORAMIX_CONSOLE_PORT}/"
 echo "[install] Proximo passo: abrir o Console e concluir o wizard do Vault (init/unseal + backup das keys)."
