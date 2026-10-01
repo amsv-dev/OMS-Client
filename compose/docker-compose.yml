@@ -45,10 +45,10 @@ services:
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_ADMIN_PASSWORD:-localpass123}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_ADMIN_PASSWORD:?defina INFLUXDB_ADMIN_PASSWORD no .env}
       - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_LOCAL_ORG:-client}
       - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_LOCAL_BUCKET:-metrics}
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_LOCAL_TOKEN:-client-local-token}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_LOCAL_TOKEN:?defina INFLUXDB_LOCAL_TOKEN no .env}
     volumes:
       - influxdb-local-data:/var/lib/influxdb2
     networks:
@@ -81,7 +81,7 @@ services:
       - SITE_CODE=${SITE_CODE:-${ASSET_ID:-unknown}}
       - OBS_ENVIRONMENT=${OBS_ENVIRONMENT:-prod}
       - OBSERVABILITY_MODE=${OBSERVABILITY_MODE:-distributed-logical-hosts}
-      - INFLUXDB_LOCAL_TOKEN=${INFLUXDB_LOCAL_TOKEN:-client-local-token}
+      - INFLUXDB_LOCAL_TOKEN=${INFLUXDB_LOCAL_TOKEN:?defina INFLUXDB_LOCAL_TOKEN no .env}
       - INFLUXDB_LOCAL_ORG=${INFLUXDB_LOCAL_ORG:-client}
       - INFLUXDB_LOCAL_BUCKET=${INFLUXDB_LOCAL_BUCKET:-metrics}
     volumes:
@@ -148,8 +148,8 @@ services:
       - SOLACE__HOST=${SOLACE__HOST:-192.168.56.30}
       - SOLACE__PORT=${SOLACE__PORT:-1883}
       - SOLACE__VPN=${SOLACE__VPN:-default}
-      - SOLACE__USERNAME=${SOLACE__USERNAME:-default}
-      - SOLACE__PASSWORD=${SOLACE__PASSWORD:-default}
+      - SOLACE__USERNAME=${SOLACE__USERNAME:?defina SOLACE__USERNAME no .env}
+      - SOLACE__PASSWORD=${SOLACE__PASSWORD:?defina SOLACE__PASSWORD no .env}
       - METRICS_TOPIC_PREFIX=${METRICS_TOPIC_PREFIX:-oms.metrics.frames}
       - METRICS_ALLOWED_MEASUREMENTS=${METRICS_ALLOWED_MEASUREMENTS:-cpu,mem,disk,diskio,system,net,processes,postgresql,postgresql_database,mysql,mysql_database,sqlserver_*,oracle,oracle_database,oms_*,win_*}
       - CENTRAL_API_URL=${CENTRAL_API_URL:-}
@@ -174,7 +174,7 @@ services:
 
       # InfluxDB Local - Leitura de métricas
       - INFLUXDB_LOCAL_URL=http://influxdb-local:8086
-      - INFLUXDB_LOCAL_TOKEN=${INFLUXDB_LOCAL_TOKEN:-client-local-token}
+      - INFLUXDB_LOCAL_TOKEN=${INFLUXDB_LOCAL_TOKEN:?defina INFLUXDB_LOCAL_TOKEN no .env}
       - INFLUXDB_LOCAL_ORG=${INFLUXDB_LOCAL_ORG:-client}
       - INFLUXDB_LOCAL_BUCKET=${INFLUXDB_LOCAL_BUCKET:-metrics}
     depends_on:
@@ -190,11 +190,28 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
+    # S24 (2026-09-17): a imagem passou a correr como `oms` (UID/GID 10001), nao root.
+    #
+    # 🔴 ANTES DE SUBIR ISTO NUM CLIENTE, no host:
+    #     sudo chown -R 10001:10001 ./secrets ./telegraf/dynamic
+    #     sudo chown 10001:10001 .     # o VaultAppRoleProvisioner escreve em ./secrets/
+    #   Sem isso o agente ARRANCA e falha a escrever, possivelmente em silencio -- que e o
+    #   pior dos casos. E a unica parte deste achado que precisa de maos no host.
+    #
+    # `group_add` com o GID do grupo `docker` do HOST: sem ele um processo nao-root nao
+    # abre o /var/run/docker.sock. O GID varia por distribuicao; descobre-se com
+    #     getent group docker | cut -d: -f3
+    # e poe-se no .env. O default 999 e o mais comum em Debian/Ubuntu, mas NAO e universal.
+    group_add:
+      - "${DOCKER_GID:-999}"
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
       - .:/app/oms-compose-workdir:rw
       - .:${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}:rw
+      # ⚠️ Quem fala com este socket manda no Docker do host -- equivalente a root NA
+      # MAQUINA, qualquer que seja o utilizador dentro do contentor. O S24 nao fecha isto;
+      # fechar e o C6 do roadmap.
       - /var/run/docker.sock:/var/run/docker.sock
       - ./secrets:/app/secrets
       # RW: bootstrap grava recovery-keys + autounseal.bin (VaultInitializationService).
