@@ -228,8 +228,17 @@ Push-Location $composeDir
 try {
     Write-Status "A atualizar imagens (docker compose pull)..."
     docker compose --env-file .env pull
+    # O5 (2026-11-18): rede de seguranca. O `pull` e nativo — nao dispara ErrorAction. Sem este
+    # check, um pull falhado (rede/registry/credenciais) seguia para o `up -d` e arrancava com
+    # imagens em falta ou antigas, em silencio. Abortar aqui e o comportamento correto.
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker compose pull falhou (codigo $LASTEXITCODE). Verifica rede/registry/credenciais; a stack NAO foi arrancada para nao subir com imagens em falta ou desatualizadas."
+    }
     Write-Status "A arrancar stack (Linux containers)..."
     docker compose --env-file .env up -d --remove-orphans
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker compose up -d falhou (codigo $LASTEXITCODE)."
+    }
 } finally {
     Pop-Location
 }

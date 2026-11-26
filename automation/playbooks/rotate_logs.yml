@@ -1,8 +1,28 @@
 ---
+# O10 (2026-11-18): deixou de ser um esboço. Antes so fazia um `debug` "executed (safe default)"
+# e reportava sucesso sem rodar log nenhum — pior do que nao existir, porque mente ao operador.
+# Agora faz rotacao REAL e SEGURA, e degrada graciosamente onde a ferramenta nao existe (failed_when
+# false), reportando o que de facto aconteceu. Precisa de sudo no host (o host-access ja o configura).
 - name: Rotate local logs
   hosts: all
   gather_facts: false
+  become: true
   tasks:
-    - name: Simulate log rotation
+    - name: Forcar logrotate (se presente)
+      ansible.builtin.command: logrotate -f /etc/logrotate.conf
+      register: lr
+      changed_when: lr.rc == 0
+      failed_when: false
+
+    - name: Vacuum do journal systemd para 7 dias (se presente)
+      ansible.builtin.command: journalctl --vacuum-time=7d
+      register: jv
+      changed_when: "'vacuuming' in (jv.stderr | default(''))"
+      failed_when: false
+
+    - name: Resultado honesto (o que correu, nao 'safe default')
       ansible.builtin.debug:
-        msg: "rotate_logs executed (safe default)"
+        msg: >-
+          rotate_logs:
+          logrotate={{ 'ok' if (lr.rc | default(1)) == 0 else 'indisponivel/skip' }},
+          journal_vacuum={{ 'ok' if (jv.rc | default(1)) == 0 else 'indisponivel/skip' }}

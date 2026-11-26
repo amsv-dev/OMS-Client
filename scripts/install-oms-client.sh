@@ -206,6 +206,17 @@ done
 
 # API_URL: parâmetro posicional ou env. Se vazio, pedir interativamente.
 
+# O6 (2026-11-18): detetar checkout local. Se o script corre de DENTRO de um checkout (OMSv2
+# completo em client/scripts/, ou o OMS-Client standalone em scripts/), usa a arvore local em vez
+# de clonar o repo publico — evita instalar codigo diferente do que se tem a mao. Respeita um
+# COMPOSE_DIR explicito (so deteta se nao foi passado).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+if [[ -z "${COMPOSE_DIR:-}" ]] && [[ -f "$SCRIPT_DIR/../compose/docker-compose.yml" ]]; then
+  COMPOSE_DIR="$(cd "$SCRIPT_DIR/../compose" && pwd)"
+  OMS_CLIENT_DIR="$(dirname "$COMPOSE_DIR")"
+  echo "[install] Checkout local detetado em $OMS_CLIENT_DIR — a usar a arvore local (sem clone)."
+fi
+
 COMPOSE_DIR="${COMPOSE_DIR:-$OMS_CLIENT_DIR/compose}"
 OMS_CLIENT_REPO="${OMS_CLIENT_REPO:-https://github.com/amsv-dev/OMS-Client.git}"
 

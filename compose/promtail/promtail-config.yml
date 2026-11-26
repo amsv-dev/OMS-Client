@@ -9,10 +9,15 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  # Central Loki endpoint — LOKI_URL no .env (ex: http://192.168.56.10:3100/loki/api/v1/push)
-  # Multi-tenant: X-Scope-OrgID = TENANT_ID; labels tenant_id + asset_id para queries
+  # Central Loki pelo gateway (api-proxy) — LOKI_URL no .env.
+  # F0.6 (CWE-639): a tenancy DEIXOU de ser auto-declarada. O gateway autentica-se pelo
+  # LOKI_TOKEN (token dedicado do plano de logs) e FORÇA o X-Scope-OrgID = tenant. Por isso:
+  #  - NÃO se envia 'tenant_id' aqui (o header que o cliente declara é descartado no gateway);
+  #  - o tenant_id/asset_id ficam só como LABELS, para as queries.
+  # O bearer_token expande de ${LOKI_TOKEN} em memória (-config.expand-env), logo o segredo vive
+  # no ENV do container, não no ficheiro em disco.
   - url: ${LOKI_URL:-http://192.168.56.10:3100/loki/api/v1/push}
-    tenant_id: ${TENANT_ID:-unknown}
+    bearer_token: ${LOKI_TOKEN}
     external_labels:
       tenant_id: ${TENANT_ID:-unknown}
       asset_id: ${ASSET_ID:-unknown}

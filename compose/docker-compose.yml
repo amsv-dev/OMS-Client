@@ -7,6 +7,10 @@ services:
     image: hashicorp/vault:1.17
     container_name: oms-vault
     restart: always
+    # CIS 5.25 — impede ganhar privilégios via setuid/setgid dentro do contentor.
+    # Compatível com o cap_add abaixo (IPC_LOCK é concedido no arranque, não "ganho").
+    security_opt:
+      - no-new-privileges:true
     cap_add:
       - IPC_LOCK   # necessario para mlock (proteger chaves master de swap)
     volumes:
@@ -39,9 +43,13 @@ services:
   influxdb-local:
     image: influxdb:2.7-alpine
     container_name: client-influxdb
+    security_opt:
+      - no-new-privileges:true
     restart: always
     ports:
-      - "${CLIENT_INFLUXDB_HTTP_PORT:-8087}:8086"
+      # H8/S23 (2026-11-17): loopback — o InfluxDB do cliente é consumido localmente (telegraf/
+      # agente no mesmo host); não tem de estar em 0.0.0.0. Alinha a fonte com o lab.
+      - "127.0.0.1:${CLIENT_INFLUXDB_HTTP_PORT:-8087}:8086"
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
@@ -64,6 +72,8 @@ services:
   telegraf:
     image: telegraf:1.38-alpine
     container_name: client-telegraf
+    security_opt:
+      - no-new-privileges:true
     restart: always
     env_file:
       - .env
@@ -124,6 +134,10 @@ services:
     image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-customer-agent:${OMS_IMAGE_TAG:-latest}
     container_name: client-customer-agent
     restart: always
+    # CIS 5.25 — o agente corre ssh/ansible/systemctl com argumentos vindos da rede; impedir
+    # escalada via setuid dentro do contentor é defesa em profundidade de alto valor aqui.
+    security_opt:
+      - no-new-privileges:true
     # API local (vault-ops, E2E): localhost apenas — LOCAL_RUNTIME_API_PORT no .env
     ports:
       - "127.0.0.1:${LOCAL_RUNTIME_API_PORT:-5808}:${LOCAL_RUNTIME_API_PORT:-5808}"
@@ -199,21 +213,18 @@ services:
     #   Sem isso o agente ARRANCA e falha a escrever, possivelmente em silencio -- que e o
     #   pior dos casos. E a unica parte deste achado que precisa de maos no host.
     #
-    # `group_add` com o GID do grupo `docker` do HOST: sem ele um processo nao-root nao
-    # abre o /var/run/docker.sock. O GID varia por distribuicao; descobre-se com
-    #     getent group docker | cut -d: -f3
-    # e poe-se no .env. O default 999 e o mais comum em Debian/Ubuntu, mas NAO e universal.
-    group_add:
-      - "${DOCKER_GID:-999}"
+    # C6 (CWE-250, 2026-11-17): o /var/run/docker.sock foi REMOVIDO deste agente — dava root no
+    # host a quem comprometesse o caminho que executa comandos do Solace. O agente não usa a API
+    # Docker (as ações são systemctl/ansible; o telegraf local recarrega com --watch-config; o
+    # self-update é um script MANUAL do operador). Sem socket, o `group_add docker` e o docker-cli
+    # do Dockerfile deixam de fazer sentido (CLI retirado da imagem).
     volumes:
       - ../automation/playbooks:/app/playbooks:ro
       - ./telegraf/dynamic:/app/telegraf-dynamic
       - .:/app/oms-compose-workdir:rw
       - .:${OMS_COMPOSE_HOST_PROJECT_DIR:-/app/oms-compose-workdir}:rw
-      # ⚠️ Quem fala com este socket manda no Docker do host -- equivalente a root NA
-      # MAQUINA, qualquer que seja o utilizador dentro do contentor. O S24 nao fecha isto;
-      # fechar e o C6 do roadmap.
-      - /var/run/docker.sock:/var/run/docker.sock
+      # (C6) /var/run/docker.sock REMOVIDO — ver nota acima. O workdir acima fica (é só para
+      # ESCREVER ficheiros de config/segredos no diretório do projeto, não para falar Docker).
       - ./secrets:/app/secrets
       # RW: bootstrap grava recovery-keys + autounseal.bin (VaultInitializationService).
       - ./secrets/vault:/vault/secrets:rw
@@ -233,12 +244,17 @@ services:
   promtail:
     image: grafana/promtail:latest
     container_name: client-promtail
+    security_opt:
+      - no-new-privileges:true
     restart: always
     environment:
       - TENANT_ID=${TENANT_ID:-unknown}
       - ASSET_ID=${ASSET_ID:-unknown}
       - LOCAL_RUNTIME_API_URL=${LOCAL_RUNTIME_API_URL:-/runtime-local}
       - LOKI_URL=${LOKI_URL:-http://192.168.56.10:3100/loki/api/v1/push}
+      # F0.6: token DEDICADO do plano de logs. O gateway autentica-se com ele e FORÇA o OrgID.
+      # Provisionado por POST /api/customers/{id}/loki-token; sem ele, o gateway devolve 401.
+      - LOKI_TOKEN=${LOKI_TOKEN:-}
     volumes:
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
@@ -251,6 +267,8 @@ services:
   oramix-console:
     image: ${CLIENT_IMAGE_REGISTRY:-ghcr.io/amsv-dev}/oms-oramix-console:${OMS_IMAGE_TAG:-latest}
     container_name: client-oramix-console
+    security_opt:
+      - no-new-privileges:true
     restart: always
     ports:
       - "${CLIENT_ORAMIX_CONSOLE_HTTP_PORT:-3122}:80"
@@ -284,6 +302,8 @@ services:
   demo-triggers:
     image: node:20-alpine
     container_name: client-demo-triggers
+    security_opt:
+      - no-new-privileges:true
     restart: always
     working_dir: /app
     volumes:
