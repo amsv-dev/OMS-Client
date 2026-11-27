@@ -1,0 +1,21 @@
+---
+# Remediação (connections-high): mata sessões IDLE para libertar ligações. DESTRUTIVO → nunca-auto. Nunca sessões activas.
+# Extra-vars: db_engine (mssql|postgres), db_name, idle_minutes (opcional, default 30).
+- name: Kill idle sessions
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: PostgreSQL — terminar sessões idle
+      ansible.builtin.command: >-
+        psql -d {{ db_name | default('postgres') }} -c
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state='idle' AND state_change < now() - interval '{{ idle_minutes | default(30) }} minutes'"
+      become_user: postgres
+      when: db_engine | default('postgres') == 'postgres'
+      changed_when: true
+    - name: SQL Server — matar sessões idle (sleeping)
+      ansible.builtin.shell: >-
+        sqlcmd -S localhost -h -1 -W -Q
+        "SELECT 'KILL '+CAST(session_id AS varchar) FROM sys.dm_exec_sessions WHERE status='sleeping' AND last_request_end_time < DATEADD(minute,-{{ idle_minutes | default(30) }},GETDATE()) AND is_user_process=1" | sqlcmd -S localhost -b
+      when: db_engine | default('postgres') == 'mssql'
+      changed_when: true

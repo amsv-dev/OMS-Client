@@ -1,0 +1,16 @@
+---
+# Remediação (mirroring): retomar o espelhamento/Availability Group suspenso. NÃO força failover.
+# Extra-vars: db_name (obrigatório).
+- name: Resume mirroring / AG
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require db_name
+      ansible.builtin.assert:
+        that: [db_name is defined, db_name | length > 0]
+        fail_msg: "db_name extra-var is required"
+    - name: Resume data movement
+      ansible.builtin.command: >-
+        sqlcmd -S localhost -b -Q "ALTER DATABASE [{{ db_name }}] SET PARTNER RESUME"
+      changed_when: true

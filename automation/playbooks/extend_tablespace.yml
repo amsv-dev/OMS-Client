@@ -1,0 +1,20 @@
+---
+# Remediação (tablespace-full): adicionar datafile ao tablespace (Oracle). Só cresce, não apaga.
+# Extra-vars: tablespace (obrigatório), datafile (opcional), size (opcional, ex. 1G).
+- name: Extend Oracle tablespace
+  hosts: all
+  gather_facts: false
+  become: true
+  become_user: oracle
+  tasks:
+    - name: Require tablespace
+      ansible.builtin.assert:
+        that: [tablespace is defined, tablespace | length > 0]
+        fail_msg: "tablespace extra-var is required"
+    - name: Add a datafile
+      ansible.builtin.shell: |
+        sqlplus -s / as sysdba <<SQL
+        ALTER TABLESPACE {{ tablespace }} ADD DATAFILE '{{ datafile | default('/u01/app/oracle/oradata/' ~ tablespace ~ '_ext.dbf') }}' SIZE {{ size | default('1G') }} AUTOEXTEND ON;
+        EXIT
+        SQL
+      changed_when: true

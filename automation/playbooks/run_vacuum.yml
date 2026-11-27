@@ -1,0 +1,17 @@
+---
+# Remediação (xid-age): VACUUM no PostgreSQL para travar o wraparound de XID. Seguro (só liberta).
+# Extra-vars: db_name (obrigatório). Corre como o utilizador postgres local.
+- name: Run VACUUM (PostgreSQL)
+  hosts: all
+  gather_facts: false
+  become: true
+  become_user: postgres
+  tasks:
+    - name: Require db_name
+      ansible.builtin.assert:
+        that: [db_name is defined, db_name | length > 0]
+        fail_msg: "db_name extra-var is required"
+    - name: VACUUM (freeze) the database
+      ansible.builtin.command:
+        cmd: "vacuumdb --freeze --dbname={{ db_name }}"
+      changed_when: true

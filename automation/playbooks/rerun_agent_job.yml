@@ -1,0 +1,16 @@
+---
+# Remediação (job-failed): re-executar um job do SQL Server Agent que falhou. Idempotente por desenho.
+# Extra-vars: job_name (obrigatório).
+- name: Rerun SQL Server Agent job
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require job_name
+      ansible.builtin.assert:
+        that: [job_name is defined, job_name | length > 0]
+        fail_msg: "job_name extra-var is required"
+    - name: Start the job
+      ansible.builtin.command: >-
+        sqlcmd -S localhost -b -Q "EXEC msdb.dbo.sp_start_job N'{{ job_name }}'"
+      changed_when: true

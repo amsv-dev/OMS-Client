@@ -1,0 +1,14 @@
+---
+# Remediação (resource-pressure): NÃO mata processos — só recolhe o top de consumo e escala.
+# Read-only por desenho (CPU/memória alta é de analisar, não de matar às cegas).
+- name: Diagnose resource pressure (read-only)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Top CPU/memory consumers
+      ansible.builtin.shell: "ps -eo pid,ppid,pcpu,pmem,comm --sort=-pcpu | head -n 15"
+      register: top
+      changed_when: false
+    - name: Report (para escalar a uma pessoa)
+      ansible.builtin.debug:
+        msg: "{{ top.stdout_lines }}"

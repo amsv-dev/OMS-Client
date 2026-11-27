@@ -1,0 +1,21 @@
+---
+# Remediação (session-lock): mata a sessão bloqueadora identificada. DESTRUTIVO → nunca-auto. Nunca o processo do motor.
+# Extra-vars: db_engine (mssql|postgres), spid/pid (obrigatório — a sessão a terminar).
+- name: Kill blocking session
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require session id
+      ansible.builtin.assert:
+        that: [ (spid is defined and spid | length > 0) or (pid is defined) ]
+        fail_msg: "spid (SQL Server) ou pid (PostgreSQL) é obrigatório"
+    - name: SQL Server — KILL spid
+      ansible.builtin.command: "sqlcmd -S localhost -b -Q \"KILL {{ spid }}\""
+      when: db_engine | default('mssql') == 'mssql' and spid is defined
+      changed_when: true
+    - name: PostgreSQL — terminate backend
+      ansible.builtin.command: "psql -c \"SELECT pg_terminate_backend({{ pid }})\""
+      become_user: postgres
+      when: db_engine | default('mssql') == 'postgres' and pid is defined
+      changed_when: true

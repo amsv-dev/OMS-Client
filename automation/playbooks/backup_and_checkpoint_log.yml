@@ -1,0 +1,23 @@
+---
+# Remediação (log-full): backup do log de transacções + checkpoint para libertar espaço. Não trunca à bruta.
+# Extra-vars: db_name (obrigatório), backup_dir (opcional). SQL Server / PostgreSQL.
+- name: Backup and checkpoint transaction log
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require db_name
+      ansible.builtin.assert:
+        that: [db_name is defined, db_name | length > 0]
+        fail_msg: "db_name extra-var is required"
+    - name: SQL Server — backup do log + checkpoint
+      ansible.builtin.command: >-
+        sqlcmd -S localhost -b -Q
+        "BACKUP LOG [{{ db_name }}] TO DISK=N'{{ backup_dir | default('/var/opt/mssql/backup') }}/{{ db_name }}_log.trn'; CHECKPOINT"
+      when: db_engine | default('mssql') == 'mssql'
+      changed_when: true
+    - name: PostgreSQL — CHECKPOINT (o WAL é arquivado pela config)
+      ansible.builtin.command: "psql -d {{ db_name }} -c CHECKPOINT"
+      become_user: postgres
+      when: db_engine | default('mssql') == 'postgres'
+      changed_when: true

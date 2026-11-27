@@ -1,0 +1,10 @@
+---
+# «Remediação» (sysadmin-excess): NÃO há acção automática — revogar privilégios é decisão humana.
+# Este playbook existe só para o fluxo ter um alvo; não altera estado.
+- name: Alert only (no automatic action)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Registar que é só alerta
+      ansible.builtin.debug:
+        msg: "alert_only: sem acção automática — privilégios sysadmin a mais são decisão de segurança humana"

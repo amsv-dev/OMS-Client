@@ -1,0 +1,16 @@
+---
+# Remediação (db-unreachable): reiniciar a instância de BD via systemd. Reversível.
+# Extra-vars: service_name (obrigatório), ex. mssql-server | postgresql | oracle-xe
+- name: Restart database instance
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require service_name
+      ansible.builtin.assert:
+        that: [service_name is defined, service_name | length > 0]
+        fail_msg: "service_name extra-var is required (o serviço da BD)"
+    - name: Restart the DB service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: restarted

@@ -1,0 +1,23 @@
+---
+# Remediação (backup-stale): fazer o backup em falta. Não apaga nada.
+# Extra-vars: db_engine (mssql|postgres), db_name (obrigatório), backup_dir (opcional).
+- name: Run database backup
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require db_name
+      ansible.builtin.assert:
+        that: [db_name is defined, db_name | length > 0]
+        fail_msg: "db_name extra-var is required"
+    - name: SQL Server backup (sqlcmd, auth integrada)
+      ansible.builtin.command: >-
+        sqlcmd -S localhost -b -Q
+        "BACKUP DATABASE [{{ db_name }}] TO DISK=N'{{ backup_dir | default('/var/opt/mssql/backup') }}/{{ db_name }}.bak' WITH INIT, COMPRESSION"
+      when: db_engine | default('mssql') == 'mssql'
+      changed_when: true
+    - name: PostgreSQL backup (pg_dump)
+      ansible.builtin.shell: "pg_dump -Fc {{ db_name }} > {{ backup_dir | default('/var/lib/pgsql/backups') }}/{{ db_name }}.dump"
+      become_user: postgres
+      when: db_engine | default('mssql') == 'postgres'
+      changed_when: true
